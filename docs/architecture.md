@@ -48,5 +48,33 @@ on `pending` orders so tier drops don't oversell.
 | GET | `/v1/auth/me` | Current user |
 | GET | `/v1/events`, `/v1/events/{slug}` | Published events and tiers |
 | GET | `/v1/fees/quote` | Fee breakdown for a face value |
+| GET, POST | `/v1/orgs` | My organisations (with my role); create one (caller becomes owner) |
+| GET, PATCH | `/v1/orgs/{org_id}` | Organisation profile |
+| GET, POST, DELETE | `/v1/orgs/{org_id}/members[/{user_id}]` | Add existing accounts by email; leave or remove |
+| GET, POST, PATCH | `/v1/orgs/{org_id}/events[/{event_id}]` | All of the organisation's events, any status |
+| POST | `/v1/orgs/{org_id}/events/{event_id}/publish`, `/cancel` | `draft` → `published` → `cancelled` |
+| POST, PATCH, DELETE | `/v1/orgs/{org_id}/events/{event_id}/tiers[/{tier_id}]` | Ticket tiers |
+| GET, POST, DELETE | `/v1/orgs/{org_id}/events/{event_id}/sellers[/{seller_id}]` | Committee sellers and their codes |
+
+### Promoter rules
+
+Organisation routes return 404 to non-members, so IDs can't be probed, and 403
+to members whose role is too low.
+
+| | owner | manager | seller, scanner |
+| --- | --- | --- | --- |
+| Read the organisation and its events | ✓ | ✓ | ✓ |
+| Edit the organisation, events, tiers, sellers; list members | ✓ | ✓ | |
+| Add or remove sellers and scanners | ✓ | ✓ | |
+| Add or remove owners and managers | ✓ | | |
+| Leave the organisation | ✓ (not the last owner) | ✓ | ✓ |
+
+- Publishing needs at least one tier and a start time in the future.
+- A cancelled event is read-only. An event with paid orders can't be cancelled
+  until the refund flow exists.
+- Once a tier has sales, its price is fixed (add a new tier instead), its
+  quantity can't drop below what's sold, and it can't be deleted.
+- A seller with attributed orders can't be deleted, so the sales report stays whole.
+- Tiers are TTD for now; the request body doesn't take a currency.
 
 Interactive docs at `/docs` when the API is running.
