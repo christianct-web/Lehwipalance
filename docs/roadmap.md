@@ -24,7 +24,8 @@
 
 ## Phase 2: pilot build
 
-- [ ] Promoter endpoints: organisations, events, tiers, sellers (role-checked)
+- [x] Promoter endpoints: organisations, members, events, tiers, sellers (role-checked)
+- [ ] Seller sales report and member invites for people without an account
 - [ ] Orders with inventory holds; WiPay checkout and callbacks
 - [ ] Ticket issue, QR, transfer by phone number
 - [ ] Offline check-in sync
