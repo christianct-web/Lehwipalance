@@ -1,0 +1,13 @@
+# Production reverse proxy template (house stack: Caddy in front of the API).
+# Replace the domains, then run Caddy alongside the compose stack.
+api.example.tt {
+	encode gzip
+	reverse_proxy api:8000
+}
+
+promoters.example.tt {
+	encode gzip
+	root * /srv/promoter-portal
+	try_files {path} /index.html
+	file_server
+}
