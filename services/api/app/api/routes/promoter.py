@@ -166,6 +166,9 @@ def add_member(org_id: UUID, body: MemberIn, member: OrgAdmin, db: DbSession) ->
 
 @router.delete("/{org_id}/members/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
 def remove_member(org_id: UUID, user_id: UUID, member: AnyMember, db: DbSession) -> Response:
+    # Lock the organisation so two owners leaving at once can't both pass the
+    # last-owner check below.
+    db.execute(select(Organisation.id).where(Organisation.id == org_id).with_for_update())
     target = db.scalar(
         select(OrgMember).where(OrgMember.organisation_id == org_id, OrgMember.user_id == user_id)
     )
@@ -195,19 +198,24 @@ def remove_member(org_id: UUID, user_id: UUID, member: AnyMember, db: DbSession)
 # ==================== Events ====================
 
 
-def _get_event(db: Session, org_id: UUID, event_id: UUID) -> Event:
-    event = db.scalar(
+def _get_event(db: Session, org_id: UUID, event_id: UUID, lock: bool = False) -> Event:
+    stmt = (
         select(Event)
         .where(Event.id == event_id, Event.organisation_id == org_id)
         .options(selectinload(Event.tiers))
     )
+    if lock:
+        # Hold the row until commit so status changes and edits on one event run
+        # one at a time, and re-read it rather than trust the session's copy.
+        stmt = stmt.with_for_update(of=Event).execution_options(populate_existing=True)
+    event = db.scalar(stmt)
     if event is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Event not found")
     return event
 
 
 def _editable_event(db: Session, org_id: UUID, event_id: UUID) -> Event:
-    event = _get_event(db, org_id, event_id)
+    event = _get_event(db, org_id, event_id, lock=True)
     if event.status == EventStatus.cancelled:
         raise _conflict("This event is cancelled")
     return event
@@ -280,7 +288,7 @@ def publish_event(org_id: UUID, event_id: UUID, member: OrgAdmin, db: DbSession)
 
 @router.post("/{org_id}/events/{event_id}/cancel", response_model=PromoterEventOut)
 def cancel_event(org_id: UUID, event_id: UUID, member: OrgAdmin, db: DbSession) -> Event:
-    event = _get_event(db, org_id, event_id)
+    event = _get_event(db, org_id, event_id, lock=True)
     if event.status == EventStatus.cancelled:
         return event
     paid = db.scalar(
@@ -400,7 +408,7 @@ def create_seller(
 def delete_seller(
     org_id: UUID, event_id: UUID, seller_id: UUID, member: OrgAdmin, db: DbSession
 ) -> Response:
-    event = _get_event(db, org_id, event_id)
+    event = _editable_event(db, org_id, event_id)
     seller = db.scalar(select(Seller).where(Seller.id == seller_id, Seller.event_id == event.id))
     if seller is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Seller not found")

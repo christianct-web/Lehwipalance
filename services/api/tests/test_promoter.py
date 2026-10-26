@@ -308,3 +308,11 @@ def test_seller_with_orders_is_kept(client, owner, org_id, db_session):
     )
     db_session.commit()
     assert client.delete(f"{base}/{seller['id']}", headers=owner).status_code == 409
+
+
+def test_cancelled_event_keeps_its_sellers(client, owner, org_id):
+    event = _event(client, org_id, owner)
+    base = f"/v1/orgs/{org_id}/events/{event['id']}"
+    seller = client.post(f"{base}/sellers", json={"display_name": "Keisha"}, headers=owner).json()
+    client.post(f"{base}/cancel", headers=owner)
+    assert client.delete(f"{base}/sellers/{seller['id']}", headers=owner).status_code == 409
