@@ -1,0 +1,30 @@
+# OS / editors
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.iml
+
+# Secrets
+.env
+.env.*
+!.env.example
+*.keystore
+*.jks
+key.properties
+android/local.properties
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+*.db
+
+# Node
+node_modules/
+dist/
+*.tsbuildinfo

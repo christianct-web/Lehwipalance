@@ -1,0 +1,30 @@
+# Local development stack: Postgres + API.
+#   cp services/api/.env.example services/api/.env
+#   docker compose up --build
+# API docs: http://localhost:8000/docs
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: lehwi
+      POSTGRES_PASSWORD: lehwi
+      POSTGRES_DB: lehwi
+    ports: ["5432:5432"]
+    volumes: [db-data:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lehwi"]
+      interval: 5s
+      retries: 10
+
+  api:
+    build: ./services/api
+    env_file: ./services/api/.env
+    environment:
+      DATABASE_URL: postgresql+psycopg://lehwi:lehwi@db:5432/lehwi
+    ports: ["8000:8000"]
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  db-data:
