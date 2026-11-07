@@ -1,7 +1,8 @@
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 
 from app.api.deps import CurrentUser, DbSession
+from app.core.ratelimit import rate_limit
 from app.core.security import create_access_token, hash_password, verify_password
 from app.models import User
 from app.schemas.auth import LoginIn, RegisterIn, TokenOut, UserOut
@@ -9,7 +10,12 @@ from app.schemas.auth import LoginIn, RegisterIn, TokenOut, UserOut
 router = APIRouter(prefix="/v1/auth", tags=["auth"])
 
 
-@router.post("/register", response_model=TokenOut, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/register",
+    response_model=TokenOut,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(rate_limit("register", 10, 3600))],
+)
 def register(body: RegisterIn, db: DbSession) -> TokenOut:
     email = body.email.lower()
     if db.scalar(select(User).where(User.email == email)):
@@ -20,7 +26,7 @@ def register(body: RegisterIn, db: DbSession) -> TokenOut:
     return TokenOut(access_token=create_access_token(user.id))
 
 
-@router.post("/login", response_model=TokenOut)
+@router.post("/login", response_model=TokenOut, dependencies=[Depends(rate_limit("login", 10, 60))])
 def login(body: LoginIn, db: DbSession) -> TokenOut:
     user = db.scalar(select(User).where(User.email == body.email.lower()))
     if (

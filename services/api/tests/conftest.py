@@ -2,6 +2,11 @@ import os
 
 os.environ.setdefault("DATABASE_URL", "sqlite+pysqlite:///:memory:")
 os.environ.setdefault("JWT_SECRET", "test-secret-that-is-long-enough-for-hs256")
+os.environ.setdefault("RATE_LIMITS_ENABLED", "false")
+os.environ.setdefault("PAYMENT_PROVIDER", "test")
+os.environ.setdefault("PUBLIC_BASE_URL", "https://tickets.example.tt")
+os.environ.setdefault("SMTP_HOST", "")
+os.environ.setdefault("SUPABASE_URL", "")
 
 import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
@@ -29,6 +34,13 @@ def db_session():
     finally:
         session.close()
         engine.dispose()
+
+
+@pytest.fixture(autouse=True)
+def _uploads(tmp_path, monkeypatch):
+    from app.core.config import get_settings
+
+    monkeypatch.setattr(get_settings(), "upload_dir", str(tmp_path / "uploads"))
 
 
 @pytest.fixture

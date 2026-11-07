@@ -25,18 +25,26 @@
 ## Phase 2: pilot build
 
 - [x] Promoter endpoints: organisations, members, events, tiers, sellers (role-checked)
-- [ ] Seller sales report and member invites for people without an account
-- [ ] Orders with inventory holds; WiPay checkout and callbacks
-- [ ] Ticket issue, QR, transfer by phone number
+- [x] Seller sales report
+- [ ] Member invites for people without an account
+- [x] Orders with inventory holds; guest checkout; test payment provider
+- [ ] WiPay checkout and callbacks (`PaymentProvider` is ready for it)
+- [x] Ticket issue and QR; ticket link by email (SMTP) and WhatsApp share
+- [ ] Ticket transfer by phone number
+- [x] Cash sales by sellers and box office
+- [x] Online gate check-in (web scanner, duplicate-safe)
 - [ ] Offline check-in sync
 - [ ] `RealApiService` in the Flutter app; remove card, bank and wallet forms
-- [ ] Promoter portal: event setup, tiers, sellers, live sales, payouts report
+- [x] Web app: event pages and checkout, promoter portal (event setup, flyer, tiers, sellers, live sales, orders, payout figures)
+- [x] Production deploy: Docker Compose + Caddy on a VPS, Supabase Postgres and Storage
 
 ## Launch checklist
 
 - [ ] Real bundle ID and release keystore (not the debug key)
 - [ ] Paid map tiles and geocoding
 - [ ] Privacy policy and terms linked in sign-up
-- [ ] Security review: auth, payments callback verification, rate limits
-- [ ] Error monitoring and uptime alerts
+- [ ] Security review: auth, payments callback verification (rate limits on login, sign-up and checkout are in)
+- [ ] Error monitoring and uptime alerts (watch `/api/health`)
+- [ ] Refund policy, and a refund flow before cancelling events with paid orders
+- [ ] Switch `PAYMENT_PROVIDER` from `test` to `wipay`
 - [ ] Store listings, screenshots, review notes

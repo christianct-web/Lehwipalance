@@ -16,6 +16,7 @@ from sqlalchemy import exists, func, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.api.deps import AnyMember, CurrentUser, DbSession, OrgAdmin
+from app.core.time import aware as _aware
 from app.models import (
     Event,
     EventStatus,
@@ -50,13 +51,6 @@ from app.services.codes import seller_code, slugify, with_suffix
 router = APIRouter(prefix="/v1/orgs", tags=["promoter"])
 
 _ADMIN_ROLES = {MemberRole.owner, MemberRole.manager}
-
-
-def _aware(dt: datetime | None) -> datetime | None:
-    # SQLite hands back naive datetimes; everything is stored as UTC.
-    if dt is not None and dt.tzinfo is None:
-        return dt.replace(tzinfo=UTC)
-    return dt
 
 
 def _changes(body: BaseModel, not_null: set[str]) -> dict[str, Any]:

@@ -11,9 +11,9 @@ Built by [Mana Labs 8](https://manalabs8.com) for the Lehwi Palance client.
 | Path | What it is | Stack |
 | --- | --- | --- |
 | `apps/customer` | Customer mobile app (the client's original codebase, cleaned up) | Flutter |
-| `apps/promoter-portal` | Promoter web portal: events, tiers, committee sellers, payouts | React + Vite + TypeScript |
+| `apps/promoter-portal` | Web app: event pages and checkout for buyers, promoter portal (events, tiers, sellers, cash sales, reports), gate scanner | React + Vite + TypeScript |
 | `services/api` | Backend API: auth, events, tiers, orders, tickets, check-in | FastAPI + SQLAlchemy + Postgres |
-| `infra` | Production reverse-proxy template | Caddy |
+| `infra` | Production web server config | Caddy |
 | `docs` | Audit, market analysis, architecture, roadmap | Markdown |
 
 ## Quick start
@@ -23,7 +23,7 @@ Built by [Mana Labs 8](https://manalabs8.com) for the Lehwi Palance client.
 cp services/api/.env.example services/api/.env
 docker compose up --build          # API on http://localhost:8000/docs
 
-# Promoter portal
+# Web app (buyers at /, promoters at /promoter)
 cd apps/promoter-portal && npm install && npm run dev   # http://localhost:5173
 
 # Customer app (still on mock data, see docs/codebase-audit.md)
@@ -33,6 +33,16 @@ cd apps/customer && flutter pub get && flutter run
 Without Docker, the API runs with `pip install -e ".[dev]"` and
 `uvicorn app.main:app --reload` from `services/api`, pointing `DATABASE_URL` at
 any Postgres 16.
+
+## Deploying
+
+Single VPS with Docker, Caddy for HTTPS, Supabase for the database:
+`docker compose -f docker-compose.prod.yml up -d --build`. Step by step in
+[docs/deploy-vps.md](docs/deploy-vps.md).
+
+Payments run in **test mode** (`PAYMENT_PROVIDER=test`) until the WiPay account is
+connected: online checkout is simulated and the site says so. Cash sales by
+sellers and the box office, and free RSVP tiers, issue real tickets.
 
 ## Checks
 
@@ -54,4 +64,5 @@ three on every push and pull request (`.github/workflows/ci.yml`).
 - [Market & economics](docs/market-and-economics.md): market, competitors, fee model, break-even
 - [Architecture](docs/architecture.md): how the pieces fit
 - [Roadmap](docs/roadmap.md): phases, open decisions and launch checklist
+- [Deploying to a VPS](docs/deploy-vps.md): production setup with Supabase
 - [Original concept](docs/original-concept.md): the client's product vision as received

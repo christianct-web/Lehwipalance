@@ -1,13 +1,27 @@
+import logging
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.routes import auth, events, health, promoter
+from app.api.routes import auth, events, health, orders, promoter, sales, uploads
 from app.core.config import get_settings
+from app.services import payments
 
 
 def create_app() -> FastAPI:
     settings = get_settings()
-    app = FastAPI(title="Lehwi Palance API", version="0.1.0")
+    settings.check_production()
+    payments.check_configured()
+    logging.basicConfig(level=logging.INFO)
+
+    app = FastAPI(
+        title="Lehwi Palance API",
+        version="0.2.0",
+        # Interactive docs stay on in development; in production they'd only map the API for others.
+        docs_url=None if settings.is_production else "/docs",
+        redoc_url=None,
+        openapi_url=None if settings.is_production else "/openapi.json",
+    )
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origin_list,
@@ -18,7 +32,10 @@ def create_app() -> FastAPI:
     app.include_router(health.router)
     app.include_router(auth.router)
     app.include_router(events.router)
+    app.include_router(orders.router)
     app.include_router(promoter.router)
+    app.include_router(sales.router)
+    app.include_router(uploads.router)
     return app
 
 

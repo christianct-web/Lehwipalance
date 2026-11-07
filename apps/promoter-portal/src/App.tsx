@@ -1,31 +1,58 @@
-import { useEffect, useState } from "react";
-import { listEvents, type EventSummary } from "./api";
+import type { ReactNode } from "react";
+import EventAdmin from "./pages/promoter/EventAdmin";
+import OrgPage from "./pages/promoter/OrgPage";
+import Orgs from "./pages/promoter/Orgs";
+import Scan from "./pages/promoter/Scan";
+import SignIn from "./pages/promoter/SignIn";
+import EventPage from "./pages/public/EventPage";
+import Home from "./pages/public/Home";
+import OrderPage from "./pages/public/OrderPage";
+import TestPay from "./pages/public/TestPay";
+import { Link, match, useLocation } from "./router";
+import { ConfigProvider, Loading, SessionProvider, Shell, useSession } from "./ui";
 
-// Starter shell only. The real portal (event setup, ticket tiers, committee
-// sellers, sales and payouts) is designed in the product & design phase.
-export default function App() {
-  const [events, setEvents] = useState<EventSummary[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
+type Route = [string, (p: Record<string, string>) => ReactNode, { auth?: boolean }?];
 
-  useEffect(() => {
-    listEvents().then(setEvents).catch((e: Error) => setError(e.message));
-  }, []);
+const ROUTES: Route[] = [
+  ["/", () => <Home />],
+  ["/e/:slug", (p) => <EventPage slug={p.slug} />],
+  ["/pay/test/:id", (p) => <TestPay orderId={p.id} />],
+  ["/orders/:id", (p) => <OrderPage orderId={p.id} />],
+  ["/promoter", () => <Orgs />, { auth: true }],
+  ["/promoter/orgs/:org", (p) => <OrgPage orgId={p.org} />, { auth: true }],
+  ["/promoter/orgs/:org/events/:ev", (p) => <EventAdmin orgId={p.org} eventId={p.ev} />, { auth: true }],
+  ["/promoter/orgs/:org/events/:ev/scan", (p) => <Scan orgId={p.org} eventId={p.ev} />, { auth: true }],
+];
 
+function Router() {
+  const { path } = useLocation();
+  const { user, ready } = useSession();
+  for (const [pattern, render, opts] of ROUTES) {
+    const params = match(pattern, path);
+    if (!params) continue;
+    if (opts?.auth) {
+      if (!ready) return <Loading />;
+      if (!user) return <SignIn />;
+    }
+    // Key by path so a page's state resets when its params change.
+    return <div key={path}>{render(params)}</div>;
+  }
   return (
-    <main>
-      <h1>Lehwi Palance for promoters</h1>
-      <p className="muted">Starter shell: connected to the API's public events list.</p>
-      {error && <p role="alert">Could not reach the API ({error}). Is it running on :8000?</p>}
-      {events === null && !error && <p>Loading…</p>}
-      {events?.length === 0 && <p>No published events yet.</p>}
-      <ul>
-        {events?.map((e) => (
-          <li key={e.id}>
-            <strong>{e.title}</strong> · {new Date(e.starts_at).toLocaleDateString("en-TT")}
-            {e.venue_name ? ` · ${e.venue_name}` : ""}
-          </li>
-        ))}
-      </ul>
-    </main>
+    <Shell>
+      <h1>Page not found</h1>
+      <p>
+        <Link href="/">See what's on</Link>
+      </p>
+    </Shell>
+  );
+}
+
+export default function App() {
+  return (
+    <ConfigProvider>
+      <SessionProvider>
+        <Router />
+      </SessionProvider>
+    </ConfigProvider>
   );
 }

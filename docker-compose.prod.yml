@@ -1,0 +1,62 @@
+# Production stack for a single VPS: Caddy (HTTPS + web app) in front of the API.
+#   cp .env.production.example .env      # then fill it in
+#   docker compose -f docker-compose.prod.yml up -d --build
+# Database: Supabase (set DATABASE_URL in .env). To run Postgres on the VPS
+# instead, add `--profile localdb` and use the localdb DATABASE_URL in .env.
+# Full guide: docs/deploy-vps.md
+name: lehwi
+
+services:
+  api:
+    build: ./services/api
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      ENVIRONMENT: production
+      UPLOAD_DIR: /srv/uploads
+    volumes:
+      - uploads:/srv/uploads
+    expose: ["8000"]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/promoter-portal/Dockerfile
+    restart: unless-stopped
+    environment:
+      DOMAIN: ${DOMAIN:?set DOMAIN in .env}
+      ACME_EMAIL: ${ACME_EMAIL:?set ACME_EMAIL in .env}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on: [api]
+
+  db:
+    profiles: [localdb]
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: lehwi
+      POSTGRES_PASSWORD: ${LOCALDB_PASSWORD:-change-me}
+      POSTGRES_DB: lehwi
+    volumes: [db-data:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lehwi"]
+      interval: 5s
+      retries: 10
+
+volumes:
+  uploads:
+  caddy-data:
+  caddy-config:
+  db-data:
