@@ -1,13 +1,35 @@
-# Production reverse proxy template (house stack: Caddy in front of the API).
-# Replace the domains, then run Caddy alongside the compose stack.
-api.example.tt {
-	encode gzip
-	reverse_proxy api:8000
+# Production web server: one domain serves the web app (buyer pages, promoter
+# portal, gate scanner) and proxies /api to the API. Caddy gets and renews the
+# HTTPS certificate automatically once DNS for {$DOMAIN} points at this server.
+{
+	email {$ACME_EMAIL}
 }
 
-promoters.example.tt {
-	encode gzip
-	root * /srv/promoter-portal
-	try_files {path} /index.html
-	file_server
+{$DOMAIN} {
+	encode zstd gzip
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Permissions-Policy "camera=(self), microphone=(), geolocation=()"
+		-Server
+	}
+
+	handle_path /api/* {
+		request_body {
+			max_size 6MB
+		}
+		reverse_proxy api:8000
+	}
+
+	handle {
+		root * /srv/web
+		@assets path /assets/*
+		header @assets Cache-Control "public, max-age=31536000, immutable"
+		header /index.html Cache-Control "no-cache"
+		try_files {path} /index.html
+		file_server
+	}
 }

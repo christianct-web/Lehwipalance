@@ -36,6 +36,22 @@ def get_current_user(
 CurrentUser = Annotated[User, Depends(get_current_user)]
 
 
+def get_optional_user(
+    db: DbSession,
+    creds: Annotated[HTTPAuthorizationCredentials | None, Depends(_bearer)],
+) -> User | None:
+    """The signed-in user if a valid token was sent; guests get None."""
+    if creds is None:
+        return None
+    try:
+        return get_current_user(db, creds)
+    except HTTPException:
+        return None
+
+
+OptionalUser = Annotated[User | None, Depends(get_optional_user)]
+
+
 def require_org_role(*roles: MemberRole) -> Callable[..., OrgMember]:
     """Dependency: the current user's membership of `org_id`, limited to `roles`.
 
@@ -60,4 +76,8 @@ def require_org_role(*roles: MemberRole) -> Callable[..., OrgMember]:
 
 AnyMember = Annotated[OrgMember, Depends(require_org_role())]
 OrgAdmin = Annotated[OrgMember, Depends(require_org_role(MemberRole.owner, MemberRole.manager))]
+OrgScanner = Annotated[
+    OrgMember,
+    Depends(require_org_role(MemberRole.owner, MemberRole.manager, MemberRole.scanner)),
+]
 OrgOwner = Annotated[OrgMember, Depends(require_org_role(MemberRole.owner))]

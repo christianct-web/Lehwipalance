@@ -2,7 +2,7 @@ import enum
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, Enum, ForeignKey, Integer, String
+from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, Integer, String, false
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base, IdMixin, TimestampMixin
@@ -49,6 +49,22 @@ class Order(IdMixin, TimestampMixin, Base):
     payment_reference: Mapped[str | None] = mapped_column(String(120), nullable=True)
     paid_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
+    # Guest checkout: buyers don't need an account. The access token is the
+    # secret in the order link that shows their tickets.
+    buyer_name: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    buyer_email: Mapped[str | None] = mapped_column(String(320), nullable=True, index=True)
+    buyer_phone: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    access_token: Mapped[str | None] = mapped_column(
+        String(64), unique=True, index=True, nullable=True
+    )
+    # A pending online order holds its tickets until this time.
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Paid through the simulated test provider: never admitted at the gate, and
+    # kept out of inventory, holds and sales figures.
+    is_test: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
+    # Staff member who recorded a cash or box-office sale.
+    recorded_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+
     items: Mapped[list["OrderItem"]] = relationship(back_populates="order")
     tickets: Mapped[list["Ticket"]] = relationship(back_populates="order")
 
@@ -57,7 +73,7 @@ class OrderItem(IdMixin, Base):
     __tablename__ = "order_items"
 
     order_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("orders.id"), index=True)
-    tier_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("ticket_tiers.id"))
+    tier_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("ticket_tiers.id"), index=True)
     quantity: Mapped[int] = mapped_column(Integer)
     unit_price_minor: Mapped[int] = mapped_column(Integer)
 
@@ -70,7 +86,7 @@ class Ticket(IdMixin, TimestampMixin, Base):
     __tablename__ = "tickets"
 
     order_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("orders.id"), index=True)
-    tier_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("ticket_tiers.id"))
+    tier_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("ticket_tiers.id"), index=True)
     holder_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     code: Mapped[str] = mapped_column(String(64), unique=True, index=True)
     status: Mapped[TicketStatus] = mapped_column(
