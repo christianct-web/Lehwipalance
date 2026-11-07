@@ -122,6 +122,14 @@ dashed ruled outline instead of vanishing. Destructive actions live in
   equals the viewport). Wide tables and the tab bar scroll inside themselves.
 - The gate verdict reads by word and size, not by colour.
 
+## Gotcha worth keeping
+
+`#root > .route { display: contents }` is scoped to the router's wrapper by
+class, not by `#root > div`. Every branch in `App.tsx` must return through that
+wrapper: a bare `return <SignIn />` makes the page's own first `<div>` a direct
+child of `#root`, inherits `display: contents`, and silently breaks that
+page's layout. This bit the test banner on the sign-in route.
+
 ## Known, accepted
 
 - **The design detector flags Montserrat as an overused face.** Overridden: it

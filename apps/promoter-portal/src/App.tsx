@@ -32,12 +32,20 @@ function Router() {
   for (const [pattern, render, opts] of ROUTES) {
     const params = match(pattern, path);
     if (!params) continue;
+    // Every branch returns the same wrapper. A bare return here would make
+    // the page's own first <div> a direct child of #root, where the
+    // display:contents rule below is meant for this wrapper alone.
+    const wrap = (node: ReactNode) => (
+      // Key by path so a page's state resets when its params change.
+      <div className="route" key={path}>
+        {node}
+      </div>
+    );
     if (opts?.auth) {
-      if (!ready) return <Loading />;
-      if (!user) return <SignIn />;
+      if (!ready) return wrap(<Loading />);
+      if (!user) return wrap(<SignIn />);
     }
-    // Key by path so a page's state resets when its params change.
-    return <div key={path}>{render(params)}</div>;
+    return wrap(render(params));
   }
   return (
     <Shell>

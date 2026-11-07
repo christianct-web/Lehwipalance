@@ -134,7 +134,7 @@ export default function SellPanel({ orgId, event, admin }: { orgId: string; even
           )}
         </div>
         {tier && (
-          <ul className="ledger">
+          <ul className="ledger ledger-wide">
             <li className="ledger-total">
               <span className="k">Collect in cash</span>
               <span className="v">{money(tier.price_minor * quantity)}</span>

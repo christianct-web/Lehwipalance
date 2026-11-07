@@ -127,7 +127,7 @@
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--ground); min-height: 100vh; }
 #root { min-height: 100vh; display: flex; flex-direction: column; }
-#root > div { display: contents; }
+#root > .route { display: contents; }
 img { max-width: 100%; }
 
 a { color: var(--cyan-ink); text-decoration-thickness: 1px; text-underline-offset: 0.18em; }
@@ -690,3 +690,16 @@ body.feed-mode .finder { margin: var(--s2) 0; flex: 0 0 auto; }
   .flyers { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s3); }
   .fcard-title { font-size: 0.95rem; }
 }
+
+/* The save chip always sits on artwork, so its ink is fixed rather than
+   following the scheme — under the dark scheme --ink is near-white, which
+   made a white icon on a white chip. */
+.save { color: #1a1026; }
+.save.on { color: #fff; }
+
+/* A checkbox and its label are one thing; never let them break apart. */
+.check { white-space: nowrap; }
+
+/* A single-line total reads as a rule under the form it belongs to, so it
+   runs the full width rather than stopping at the account measure. */
+.ledger.ledger-wide { max-width: none; }
