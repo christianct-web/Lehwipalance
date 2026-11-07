@@ -4,8 +4,15 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Lehwi Palance</title>
-    <meta name="description" content="Tickets for fetes, concerts and events in Trinidad &amp; Tobago." />
-    <meta name="theme-color" content="#e8432e" />
+    <meta name="description" content="Every fete on sale in Trinidad &amp; Tobago, by the day it runs. Buy in a minute, show the QR at the gate." />
+    <!-- Brand purple: the browser chrome is part of the surface. -->
+    <meta name="theme-color" content="#8b1fc4" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#170b26" media="(prefers-color-scheme: dark)" />
+    <link rel="icon" type="image/svg+xml" href="/mark.svg" />
+    <link rel="apple-touch-icon" href="/mark.svg" />
+    <!-- The display face is self-hosted and same-origin; preload it so the
+         wordmark does not land a frame late on a slow connection. -->
+    <link rel="preload" href="/fonts/montserrat-latin-var.woff2" as="font" type="font/woff2" crossorigin />
   </head>
   <body>
     <div id="root"></div>

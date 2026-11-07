@@ -98,8 +98,9 @@ export default function EventPage({ slug }: { slug: string }) {
         : null;
 
   return (
-    <Shell>
-      <article className="event">
+    <Shell wide>
+      <article className="event grid-details">
+        <div>
         {event.cover_image_url && <img className="event-cover" src={event.cover_image_url} alt="" />}
         <h1>{event.title}</h1>
         <p className="event-meta">
@@ -120,6 +121,7 @@ export default function EventPage({ slug }: { slug: string }) {
           )}
         </p>
         {event.description && <p className="event-desc">{event.description}</p>}
+        </div>
 
         <form className="card checkout" onSubmit={submit}>
           <h2>Tickets</h2>
@@ -130,12 +132,19 @@ export default function EventPage({ slug }: { slug: string }) {
               const n = qty[t.id] ?? 0;
               return (
                 <li key={t.id} className={t.remaining === 0 ? "tier sold-out" : "tier"}>
-                  <div>
-                    <strong>{t.name}</strong>
-                    <span className="muted">{t.price_minor === 0 ? "Free" : money(t.price_minor, t.currency)}</span>
-                  </div>
+                  <span className="tier-name">{t.name}</span>
+                  <span className="tier-price">
+                    {t.price_minor === 0 ? "Free" : money(t.price_minor, t.currency)}
+                  </span>
+                  <span className="tier-meta">
+                    {t.remaining === 0
+                      ? "Sold out"
+                      : t.remaining <= 20
+                        ? `${t.remaining} left`
+                        : "On sale"}
+                  </span>
                   {t.remaining === 0 ? (
-                    <span className="muted">Sold out</span>
+                    <span className="badge">Sold out</span>
                   ) : !buyable ? (
                     <span className="muted small right">From sellers &amp; at the gate</span>
                   ) : (

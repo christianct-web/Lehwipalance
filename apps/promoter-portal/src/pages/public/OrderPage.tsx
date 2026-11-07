@@ -40,11 +40,11 @@ export default function OrderPage({ orderId }: { orderId: string }) {
   return (
     <Shell>
       <div className="order">
-        <p className="eyebrow">Order for {order.buyer_name}</p>
         <h1>{order.event.title}</h1>
         <p className="event-meta">
           <strong>{dateLong(order.event.starts_at)}</strong>
           {order.event.venue_name && <span>{order.event.venue_name}</span>}
+          {order.buyer_name && <span className="muted">Order for {order.buyer_name}</span>}
         </p>
 
         {order.status === "pending" && (
@@ -81,9 +81,13 @@ export default function OrderPage({ orderId }: { orderId: string }) {
 
         {order.status === "paid" && (
           <>
-            <Notice kind="ok">
-              You're going! Show a QR code at the gate. Each code gets one person in.
-            </Notice>
+            {/* A simulated order already says the gate will refuse it; telling
+                the same buyer "you're going" in the next breath contradicts it. */}
+            {!order.is_test && (
+              <Notice kind="ok">
+                You're going! Show a QR code at the gate. Each code gets one person in.
+              </Notice>
+            )}
             <div className="share-row">
               <CopyButton text={share} label="Copy ticket link" />
               <a className="btn btn-ghost btn-sm" href={whatsappLink(`My tickets for ${order.event.title}: ${share}`)} target="_blank" rel="noreferrer">

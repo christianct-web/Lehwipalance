@@ -134,9 +134,12 @@ export default function SellPanel({ orgId, event, admin }: { orgId: string; even
           )}
         </div>
         {tier && (
-          <p className="total-line">
-            Collect <strong>{money(tier.price_minor * quantity)}</strong>
-          </p>
+          <ul className="ledger">
+            <li className="ledger-total">
+              <span className="k">Collect in cash</span>
+              <span className="v">{money(tier.price_minor * quantity)}</span>
+            </li>
+          </ul>
         )}
         <Notice>{action.error}</Notice>
         <button className="btn btn-primary btn-block" disabled={action.busy || !tierId}>

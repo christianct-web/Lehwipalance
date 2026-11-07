@@ -19,7 +19,6 @@ export default function TestPay({ orderId }: { orderId: string }) {
   return (
     <Shell>
       <div className="card test-pay">
-        <p className="eyebrow">Test checkout</p>
         <h1>Simulated payment</h1>
         <p className="muted">
           This page stands in for WiPay's hosted checkout until the live account is connected. No card is charged.

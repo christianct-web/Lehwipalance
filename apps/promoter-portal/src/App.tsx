@@ -6,6 +6,7 @@ import Scan from "./pages/promoter/Scan";
 import SignIn from "./pages/promoter/SignIn";
 import EventPage from "./pages/public/EventPage";
 import Home from "./pages/public/Home";
+import MyTickets from "./pages/public/MyTickets";
 import OrderPage from "./pages/public/OrderPage";
 import TestPay from "./pages/public/TestPay";
 import { Link, match, useLocation } from "./router";
@@ -15,6 +16,7 @@ type Route = [string, (p: Record<string, string>) => ReactNode, { auth?: boolean
 
 const ROUTES: Route[] = [
   ["/", () => <Home />],
+  ["/tickets", () => <MyTickets />],
   ["/e/:slug", (p) => <EventPage slug={p.slug} />],
   ["/pay/test/:id", (p) => <TestPay orderId={p.id} />],
   ["/orders/:id", (p) => <OrderPage orderId={p.id} />],
