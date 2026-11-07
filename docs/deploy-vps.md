@@ -66,7 +66,8 @@ nano .env
 
 Fill in at least `DOMAIN`, `ACME_EMAIL`, `PUBLIC_BASE_URL`, `CORS_ORIGINS`,
 `JWT_SECRET` (`openssl rand -hex 32`) and `DATABASE_URL`. Leave
-`PAYMENT_PROVIDER=test` until WiPay is connected.
+`PAYMENT_PROVIDER=test` until WiPay is connected, and choose `TEST_CHECKOUT`
+(see "Two ways to run before WiPay" below).
 
 ## 6. Start
 
@@ -75,8 +76,8 @@ docker compose -f docker-compose.prod.yml up -d --build
 docker compose -f docker-compose.prod.yml logs -f api    # watch migrations run; Ctrl+C to stop watching
 ```
 
-Open `https://YOUR_DOMAIN`. The yellow banner confirms test mode.
-`https://YOUR_DOMAIN/api/health` should return `{"status":"ok"}`.
+Open `https://YOUR_DOMAIN`. With `TEST_CHECKOUT=true` a yellow banner confirms
+test mode. `https://YOUR_DOMAIN/api/health` should return `{"status":"ok"}`.
 
 Using Postgres on the VPS instead of Supabase: set the `localdb` lines in `.env`
 and add `--profile localdb` to every `docker compose` command.
@@ -110,18 +111,34 @@ Migrations run automatically on start.
   and copy the files off the server.
 - **Flyers on the VPS**: they live in the `lehwi_uploads` Docker volume.
 
-## Before selling real tickets
+## Two ways to run before WiPay
 
-The site runs in **test mode** until WiPay is wired in: checkout is simulated and
-no money is collected online. You can still run a real pilot with **cash sales**
-(sellers and box office record sales; buyers get real QR tickets) and **free RSVP
-tiers**. To take card payments:
+`TEST_CHECKOUT` decides whether the public can make **simulated** online payments.
+
+| | `TEST_CHECKOUT=false` (the production default) | `TEST_CHECKOUT=true` |
+| --- | --- | --- |
+| Use it for | **A real pilot**: real cash sales, real gate | Demos and staff training |
+| Paid tiers online | Shown, but marked "from sellers & at the gate" | Simulated checkout (Pay / Decline) |
+| Free RSVP tiers online | Real tickets | Real tickets |
+| Cash and box-office sales | Real tickets | Real tickets |
+| Banner | None | Yellow test-mode banner |
+
+Simulated orders are always flagged as test orders, whichever mode: they don't
+use up inventory, don't appear in sales figures, and the gate scanner refuses
+their tickets ("Test ticket: not valid"). So nobody gets into a real fete with a
+simulated payment. Still, **don't leave `TEST_CHECKOUT=true` on while you run a
+real event**: buyers could be confused by tickets that won't work.
+
+## Before taking card payments
+
+To take card payments online:
 
 1. WiPay business account approved; API credentials in hand.
 2. Implement `WipayProvider` in `services/api/app/services/payments.py` with
    wipay-connect, plus a callback route that verifies WiPay's payload and calls
    `orders.mark_paid` / `orders.mark_failed` (the test route shows the pattern).
-3. Set `PAYMENT_PROVIDER=wipay` and the `WIPAY_*` values; the banner disappears.
+3. Set `PAYMENT_PROVIDER=wipay` and the `WIPAY_*` values. `TEST_CHECKOUT` no
+   longer applies and online checkout takes real payments.
 
 Also on the launch list (docs/roadmap.md): privacy policy and terms pages, a
 refund policy, uptime monitoring on `/api/health`, and error alerts.

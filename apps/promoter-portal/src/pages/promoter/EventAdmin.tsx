@@ -217,7 +217,10 @@ function Overview({
               </table>
             </>
           )}
-          <p className="muted small">"Held" tickets are in someone's checkout right now and return to sale if unpaid.</p>
+          <p className="muted small">
+            "Held" tickets are in someone's checkout right now and return to sale if unpaid. Simulated test-mode orders
+            are never counted.
+          </p>
         </>
       )}
 
@@ -669,6 +672,7 @@ function Orders({ orgId, eventId }: { orgId: string; eventId: string }) {
                   <td className="right">{money(o.total_minor)}</td>
                   <td>
                     <Badge tone={o.status === "paid" ? "good" : o.status === "pending" ? "warn" : "bad"}>{o.status}</Badge>
+                    {o.is_test && <Badge tone="warn">test</Badge>}
                   </td>
                   <td className="right">{o.status === "paid" && <CopyButton text={o.link} label="Ticket link" />}</td>
                 </tr>

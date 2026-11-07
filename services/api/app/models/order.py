@@ -2,7 +2,7 @@ import enum
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, Enum, ForeignKey, Integer, String
+from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, Integer, String, false
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base, IdMixin, TimestampMixin
@@ -59,6 +59,9 @@ class Order(IdMixin, TimestampMixin, Base):
     )
     # A pending online order holds its tickets until this time.
     expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Paid through the simulated test provider: never admitted at the gate, and
+    # kept out of inventory, holds and sales figures.
+    is_test: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
     # Staff member who recorded a cash or box-office sale.
     recorded_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"), nullable=True)
 

@@ -76,6 +76,11 @@ const qs = (params: Record<string, string | number | boolean | undefined | null>
 
 // ---------- Types ----------
 
+// live: real payments. test: simulated, tickets won't get anyone in. off: paid
+// online checkout closed (cash sales and free tiers only).
+export type OnlinePayments = "live" | "test" | "off";
+export type SiteConfig = { payment_provider: string; test_payments: boolean; online_payments: OnlinePayments };
+
 export type Role = "owner" | "manager" | "seller" | "scanner";
 export type EventStatus = "draft" | "published" | "cancelled";
 export type Channel = "online" | "seller_cash" | "box_office";
@@ -134,6 +139,7 @@ export type Order = {
   paid_at: string | null;
   access_token: string;
   link: string;
+  is_test: boolean;
   tickets: Ticket[];
 };
 
@@ -258,10 +264,11 @@ export type PromoterOrder = {
   checked_in: number;
   total_minor: number;
   link: string;
+  is_test: boolean;
 };
 
 export type CheckinResult = {
-  result: "ok" | "already_checked_in" | "void" | "wrong_event" | "not_found";
+  result: "ok" | "already_checked_in" | "void" | "test_ticket" | "wrong_event" | "not_found";
   tier_name: string | null;
   buyer_name: string | null;
   checked_in_at: string | null;
@@ -282,7 +289,7 @@ export type StaffSale = {
 // ---------- Endpoints ----------
 
 export const api = {
-  config: () => get<{ payment_provider: string; test_payments: boolean }>("/v1/config"),
+  config: () => get<SiteConfig>("/v1/config"),
 
   // Public
   events: () => get<EventSummary[]>("/v1/events"),

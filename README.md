@@ -40,9 +40,11 @@ Single VPS with Docker, Caddy for HTTPS, Supabase for the database:
 `docker compose -f docker-compose.prod.yml up -d --build`. Step by step in
 [docs/deploy-vps.md](docs/deploy-vps.md).
 
-Payments run in **test mode** (`PAYMENT_PROVIDER=test`) until the WiPay account is
-connected: online checkout is simulated and the site says so. Cash sales by
-sellers and the box office, and free RSVP tiers, issue real tickets.
+Until the WiPay account is connected (`PAYMENT_PROVIDER=test`), paid online checkout
+is either closed (`TEST_CHECKOUT=false`, the production default, for a real pilot
+run on cash sales, box office and free RSVPs) or simulated for demos
+(`TEST_CHECKOUT=true`). Simulated tickets are refused at the gate and never count
+in sales figures.
 
 ## Checks
 

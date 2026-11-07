@@ -2,11 +2,14 @@ import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { api, type FeeQuote } from "../../api";
 import { dateLong, money } from "../../format";
 import { navigate, useQuery } from "../../router";
-import { Field, Loading, Notice, Shell, useAction, useLoad } from "../../ui";
+import { Field, Loading, Notice, Shell, useAction, useConfig, useLoad } from "../../ui";
 import { saveOrder } from "./saved";
 
 export default function EventPage({ slug }: { slug: string }) {
   const query = useQuery();
+  const { onlinePayments } = useConfig();
+  // With paid online checkout closed, only free tiers can be picked here.
+  const paidOnline = onlinePayments !== "off";
   const { data: event, error } = useLoad(() => api.event(slug), [slug]);
   const [qty, setQty] = useState<Record<string, number>>({});
   const [name, setName] = useState("");
@@ -122,7 +125,8 @@ export default function EventPage({ slug }: { slug: string }) {
           <h2>Tickets</h2>
           <ul className="tiers">
             {event.tiers.map((t) => {
-              const max = Math.min(t.remaining, t.max_per_order);
+              const buyable = t.price_minor === 0 || paidOnline;
+              const max = buyable ? Math.min(t.remaining, t.max_per_order) : 0;
               const n = qty[t.id] ?? 0;
               return (
                 <li key={t.id} className={t.remaining === 0 ? "tier sold-out" : "tier"}>
@@ -132,6 +136,8 @@ export default function EventPage({ slug }: { slug: string }) {
                   </div>
                   {t.remaining === 0 ? (
                     <span className="muted">Sold out</span>
+                  ) : !buyable ? (
+                    <span className="muted small right">From sellers &amp; at the gate</span>
                   ) : (
                     <div className="stepper" aria-label={`${t.name} quantity`}>
                       <button type="button" onClick={() => step(t.id, -1, max)} disabled={n === 0} aria-label="One fewer">
@@ -148,6 +154,11 @@ export default function EventPage({ slug }: { slug: string }) {
             })}
           </ul>
 
+          {!paidOnline && event.tiers.some((t) => t.price_minor > 0) && (
+            <p className="muted small">
+              Online payment isn't open yet. Buy paid tickets from a committee seller or at the gate.
+            </p>
+          )}
           {count > 0 && (
             <>
               <div className="grid-2">
@@ -187,10 +198,12 @@ export default function EventPage({ slug }: { slug: string }) {
               <button className="btn btn-primary btn-block" disabled={action.busy}>
                 {action.busy ? "Reserving…" : quote?.total_minor === 0 ? "Get tickets" : "Continue to payment"}
               </button>
-              <p className="muted small">
-                Tickets are held for 15 minutes while you pay. Card details are entered only on the payment
-                provider's secure page.
-              </p>
+              {quote && quote.total_minor > 0 && (
+                <p className="muted small">
+                  Tickets are held for 15 minutes while you pay. Card details are entered only on the payment
+                  provider's secure page.
+                </p>
+              )}
             </>
           )}
         </form>

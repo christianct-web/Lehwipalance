@@ -47,13 +47,25 @@ Logic lives in `app/services/orders.py`; the payment boundary is
   `quantity_sold` committed) or `mark_failed`. Both are idempotent.
 - **Availability** = quantity − sold − tickets in unexpired pending orders. Every
   write locks the tier rows first, so a tier drop can't oversell.
-- **Late payment**: if a hold expired and the tickets went to someone else, the order
-  is marked `failed` with the payment reference kept for a refund; otherwise it's honoured.
+- **Locking**: checkout, staff sales, settlement, tier edits and cancellation all take
+  the event row lock first (then order, then tiers), so per event they run one at a
+  time in a fixed order. Verified with concurrent threads on Postgres 16.
+- **Capacity**: a tier's quantity can't go below sold + held, and settlement re-checks
+  capacity excluding the order's own hold.
+- **Late payment**: if the tickets are gone (hold expired and sold out) the order is
+  marked `failed`; if the event was cancelled it stays `cancelled`. Either way the
+  payment reference is kept for a refund.
+- **Cancellation** closes every pending checkout (`cancelled`) under the event lock,
+  and is refused while real paid orders exist (refund flow not built yet).
 - **Free tiers** and **staff sales** (`seller_cash`, `box_office`) are paid at once.
   Cash buyers pay face value (no booking fee); the promoter fee applies to all sales.
-- **Test provider** (`PAYMENT_PROVIDER=test`): checkout is a page in the web app with
-  Pay / Decline buttons, and the site shows a test-mode banner. The WiPay provider
-  should reuse Mana Labs 8's `wipay-connect` SDK and follow the same pattern.
+- **Test provider** (`PAYMENT_PROVIDER=test`): with `TEST_CHECKOUT` on (default in
+  development, off in production) checkout is a page in the web app with Pay /
+  Decline buttons and a test-mode banner. Those orders are `is_test`: no holds, no
+  inventory, excluded from reports, refused at check-in (`test_ticket`). With it off,
+  paid online orders are refused and the public pages point buyers to sellers. The
+  WiPay provider should reuse Mana Labs 8's `wipay-connect` SDK and settle through
+  `mark_paid` / `mark_failed` the same way.
 - **Tickets**: a random 32-character `code` per admission, shown as a QR. The order
   link (`/orders/{id}?token=…`) is the buyer's access; it's emailed when SMTP is set.
 - **Check-in** is one conditional `UPDATE … WHERE status = 'valid'`, so two gates
@@ -68,7 +80,7 @@ Logic lives in `app/services/orders.py`; the payment boundary is
 | GET | `/v1/auth/me` | Current user |
 | GET | `/v1/events`, `/v1/events/{slug}` | Published events and tiers |
 | GET | `/v1/fees/quote` | Fee breakdown for a face value |
-| GET | `/v1/config` | Payment provider and whether test mode is on |
+| GET | `/v1/config` | Payment provider and `online_payments`: `live`, `test` or `off` |
 | POST | `/v1/orders` | Guest checkout; returns the order and `checkout_url` (rate-limited) |
 | GET | `/v1/orders/{id}?token=` | Order status and tickets |
 | POST | `/v1/payments/test/{id}` | Test provider's pay/decline (only in test mode) |

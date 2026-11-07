@@ -52,6 +52,7 @@ def order_out(db: Session, order: Order, event: Event | None = None) -> OrderOut
         paid_at=order.paid_at,
         access_token=order.access_token or "",
         link=order_link(order),
+        is_test=order.is_test,
         tickets=[
             TicketOut(
                 code=t.code,

@@ -8,7 +8,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { api, getToken, setToken, type User } from "./api";
+import { api, getToken, setToken, type OnlinePayments, type User } from "./api";
 import { Link } from "./router";
 
 // ---------- Data loading ----------
@@ -95,17 +95,18 @@ export const useSession = () => useContext(SessionContext);
 
 // ---------- Site config (test-mode banner) ----------
 
-const ConfigContext = createContext<{ testPayments: boolean }>({ testPayments: false });
+// null until loaded: pages that sell treat that as "still checking".
+const ConfigContext = createContext<{ onlinePayments: OnlinePayments | null }>({ onlinePayments: null });
 
 export function ConfigProvider({ children }: { children: ReactNode }) {
-  const [testPayments, setTestPayments] = useState(false);
+  const [onlinePayments, setOnlinePayments] = useState<OnlinePayments | null>(null);
   useEffect(() => {
     api
       .config()
-      .then((c) => setTestPayments(c.test_payments))
+      .then((c) => setOnlinePayments(c.online_payments))
       .catch(() => {});
   }, []);
-  return <ConfigContext.Provider value={{ testPayments }}>{children}</ConfigContext.Provider>;
+  return <ConfigContext.Provider value={{ onlinePayments }}>{children}</ConfigContext.Provider>;
 }
 
 export const useConfig = () => useContext(ConfigContext);
@@ -113,12 +114,12 @@ export const useConfig = () => useContext(ConfigContext);
 // ---------- Layout ----------
 
 export function Shell({ children, wide, nav }: { children: ReactNode; wide?: boolean; nav?: ReactNode }) {
-  const { testPayments } = useConfig();
+  const { onlinePayments } = useConfig();
   return (
     <>
-      {testPayments && (
+      {onlinePayments === "test" && (
         <div className="test-banner" role="status">
-          Test mode: payments are simulated and no money is charged.
+          Test mode: payments are simulated, no money is charged, and test tickets won't get you in.
         </div>
       )}
       <header className="site-header">

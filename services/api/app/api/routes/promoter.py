@@ -46,6 +46,7 @@ from app.schemas.promoter import (
     TierIn,
     TierPatch,
 )
+from app.services import orders
 from app.services.codes import seller_code, slugify, with_suffix
 
 router = APIRouter(prefix="/v1/orgs", tags=["promoter"])
@@ -286,12 +287,21 @@ def cancel_event(org_id: UUID, event_id: UUID, member: OrgAdmin, db: DbSession) 
     if event.status == EventStatus.cancelled:
         return event
     paid = db.scalar(
-        select(exists().where(Order.event_id == event.id, Order.status == OrderStatus.paid))
+        select(
+            exists().where(
+                Order.event_id == event.id,
+                Order.status == OrderStatus.paid,
+                Order.is_test.is_(False),
+            )
+        )
     )
     if paid:
         # Cancelling with paid orders means refunding them; that flow isn't built yet.
         raise _conflict("This event has paid orders; refunds must be handled first")
     event.status = EventStatus.cancelled
+    # Still under the event lock: close open checkouts so a late payment can't
+    # issue tickets (settlement takes the same lock and sees the cancellation).
+    orders.cancel_open_orders(db, event.id)
     db.commit()
     return event
 
@@ -331,7 +341,17 @@ def update_tier(
     if tier.quantity_sold:
         if "price_minor" in changes and changes["price_minor"] != tier.price_minor:
             raise _conflict("Tickets in this tier are sold; add a new tier for a new price")
-        if changes.get("quantity", tier.quantity) < tier.quantity_sold:
+    if "quantity" in changes:
+        # The event lock (taken above) also guards checkout, so holds can't change
+        # between this count and the commit.
+        held = orders.held_quantities(db, [tier.id]).get(tier.id, 0)
+        floor = tier.quantity_sold + held
+        if changes["quantity"] < floor:
+            if held:
+                raise _conflict(
+                    f"{tier.quantity_sold} sold and {held} in checkout right now; "
+                    f"the quantity can't go below {floor}"
+                )
             raise _conflict(f"{tier.quantity_sold} tickets are already sold in this tier")
     start = changes.get("sales_start_at", _aware(tier.sales_start_at))
     end = changes.get("sales_end_at", _aware(tier.sales_end_at))

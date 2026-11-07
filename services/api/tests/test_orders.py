@@ -5,10 +5,35 @@ import pytest
 
 from app.core import ratelimit
 from app.core.config import get_settings
+from app.db.session import get_db
+from app.main import app
 from app.models import Order
+from app.services import orders, payments
 
 FUTURE = (datetime.now(UTC) + timedelta(days=30)).isoformat()
 PNG = b"\x89PNG\r\n\x1a\n" + b"\x00" * 64
+
+
+class FakeLiveProvider:
+    """Stands in for a real provider (WiPay): orders are real, not simulated."""
+
+    def create_checkout(self, order):
+        return f"https://pay.example/{order.id}"
+
+
+@pytest.fixture(autouse=True)
+def live_payments(monkeypatch):
+    # Most tests here are about real inventory, so default to a live provider.
+    # Tests of the simulated provider use the `test_mode` fixture.
+    monkeypatch.setattr(get_settings(), "payment_provider", "fake-live")
+    monkeypatch.setattr(payments, "get_provider", FakeLiveProvider)
+
+
+@pytest.fixture
+def test_mode(monkeypatch):
+    monkeypatch.setattr(get_settings(), "payment_provider", "test")
+    monkeypatch.setattr(get_settings(), "test_checkout", True)
+    monkeypatch.setattr(payments, "get_provider", payments.TestPaymentProvider)
 
 
 def _auth(client, email):
@@ -63,10 +88,21 @@ def _order(client, setup, tier, qty=1, **extra):
 
 
 def _pay(client, order, outcome="paid"):
-    return client.post(
-        f"/v1/payments/test/{order['id']}",
-        json={"token": order["access_token"], "outcome": outcome},
-    )
+    """Settle a payment the way the current provider would: the test page's route
+    in test mode, otherwise a verified provider callback (the settlement service)."""
+    if get_settings().test_payments:
+        return client.post(
+            f"/v1/payments/test/{order['id']}",
+            json={"token": order["access_token"], "outcome": outcome},
+        )
+    db = app.dependency_overrides[get_db]()
+    order_id = uuid.UUID(order["id"])
+    if outcome == "paid":
+        orders.mark_paid(db, order_id, f"LIVE-{order_id.hex[:8]}")
+    else:
+        orders.mark_failed(db, order_id, "LIVE-declined")
+    db.commit()
+    return client.get(f"/v1/orders/{order['id']}", params={"token": order["access_token"]})
 
 
 def _expire(db_session, order):
@@ -88,7 +124,8 @@ def test_paid_checkout_flow(client, setup):
     # 4.5% + TT$3 per ticket
     assert order["buyer_fee_minor"] == 3600 + 600
     assert order["total_minor"] == 84200
-    assert order["checkout_url"].startswith("https://tickets.example.tt/pay/test/")
+    assert order["checkout_url"] == f"https://pay.example/{order['id']}"
+    assert order["is_test"] is False
     assert order["tickets"] == []
     assert order["buyer_email"] == "ana@example.com"
 
@@ -224,8 +261,15 @@ def test_signed_in_buyer_sees_their_orders(client, setup):
 def test_test_payments_hidden_outside_test_mode(client, setup, monkeypatch):
     order = _order(client, setup, setup["paid"]).json()
     monkeypatch.setattr(get_settings(), "payment_provider", "wipay")
-    assert _pay(client, order).status_code == 404
-    assert client.get("/v1/config").json() == {"payment_provider": "wipay", "test_payments": False}
+    r = client.post(
+        f"/v1/payments/test/{order['id']}", json={"token": order["access_token"], "outcome": "paid"}
+    )
+    assert r.status_code == 404
+    assert client.get("/v1/config").json() == {
+        "payment_provider": "wipay",
+        "test_payments": False,
+        "online_payments": "live",
+    }
 
 
 # ---------- Staff sales ----------
@@ -379,3 +423,109 @@ def test_login_is_rate_limited(client, monkeypatch):
     assert codes[:10] == [401] * 10
     assert codes[10] == 429
     ratelimit.reset()
+
+
+# ---------- Review fixes (PR #3) ----------
+
+
+def _tier_remaining(client, setup, tier):
+    ev = client.get(f"/v1/events/{setup['event']['slug']}").json()
+    return next(t for t in ev["tiers"] if t["id"] == tier)["remaining"]
+
+
+def test_capacity_cannot_drop_below_sold_plus_held(client, setup, owner):
+    order = _order(client, setup, setup["paid"], 4).json()
+    url = f"{setup['base']}/tiers/{setup['paid']}"
+    r = client.patch(url, json={"quantity": 1}, headers=owner)
+    assert r.status_code == 409
+    assert "in checkout" in r.json()["detail"]
+    assert client.patch(url, json={"quantity": 4}, headers=owner).status_code == 200
+    paid = _pay(client, order).json()
+    assert paid["status"] == "paid"
+    report = client.get(f"{setup['base']}/report", headers=owner).json()
+    assert (report["tiers"][0]["sold"], report["tiers"][0]["quantity"]) == (4, 4)
+
+
+def test_settlement_never_exceeds_capacity(client, setup, owner, db_session):
+    from app.models import TicketTier
+
+    order = _order(client, setup, setup["paid"], 4).json()
+    # Capacity cut behind the API's back: settlement must still refuse to oversell.
+    db_session.get(TicketTier, uuid.UUID(setup["paid"])).quantity = 1
+    db_session.commit()
+    late = _pay(client, order).json()
+    assert late["status"] == "failed"
+    assert late["tickets"] == []
+    assert db_session.get(TicketTier, uuid.UUID(setup["paid"])).quantity_sold == 0
+
+
+def test_cancelling_event_cancels_open_checkouts(client, setup, owner):
+    order = _order(client, setup, setup["paid"], 2).json()
+    assert client.post(f"{setup['base']}/cancel", headers=owner).status_code == 200
+    got = client.get(f"/v1/orders/{order['id']}", params={"token": order["access_token"]})
+    assert got.json()["status"] == "cancelled"
+    after = _pay(client, order).json()
+    assert after["status"] == "cancelled"
+    assert after["tickets"] == []
+
+
+def test_public_remaining_counts_holds(client, setup):
+    assert _tier_remaining(client, setup, setup["paid"]) == 5
+    _order(client, setup, setup["paid"], 4)
+    assert _tier_remaining(client, setup, setup["paid"]) == 1
+
+
+def test_simulated_payments_are_isolated(client, setup, owner, test_mode):
+    order = _order(client, setup, setup["paid"], 2).json()
+    assert order["is_test"] is True
+    assert order["checkout_url"].startswith("https://tickets.example.tt/pay/test/")
+    assert client.get("/v1/config").json()["online_payments"] == "test"
+    paid = _pay(client, order).json()
+    assert paid["status"] == "paid"
+    assert paid["is_test"] is True
+    code = paid["tickets"][0]["code"]
+
+    # Not admitted at the gate.
+    r = client.post(f"{setup['base']}/checkin", json={"code": code}, headers=owner).json()
+    assert r["result"] == "test_ticket"
+    assert (r["checked_in"], r["total"]) == (0, 0)
+
+    # Not in real inventory or money.
+    assert _tier_remaining(client, setup, setup["paid"]) == 5
+    report = client.get(f"{setup['base']}/report", headers=owner).json()
+    assert (report["tickets_sold"], report["gross_minor"], report["channels"]) == (0, 0, [])
+    assert client.get(f"{setup['base']}/orders", headers=owner).json() == []
+    rows = client.get(f"{setup['base']}/orders", params={"include_unpaid": True}, headers=owner)
+    assert [o["is_test"] for o in rows.json()] == [True]
+
+    # A real cash sale alongside is untouched, and the event can still be cancelled
+    # with only test orders outstanding... but not with a real paid sale.
+    sale = {"tier_id": setup["paid"], "quantity": 5, "buyer_name": "Cash"}
+    assert client.post(f"{setup['base']}/sales", json=sale, headers=owner).status_code == 201
+    assert client.post(f"{setup['base']}/cancel", headers=owner).status_code == 409
+
+
+def test_test_checkout_off_blocks_paid_online_orders(client, setup, test_mode, monkeypatch):
+    monkeypatch.setattr(get_settings(), "test_checkout", False)
+    assert client.get("/v1/config").json()["online_payments"] == "off"
+    r = _order(client, setup, setup["paid"], 1)
+    assert r.status_code == 409
+    assert "Online payments aren't open yet" in r.json()["detail"]
+    # Free tiers still work.
+    assert _order(client, setup, setup["free"], 1).json()["status"] == "paid"
+
+
+def test_test_checkout_defaults_off_in_production(monkeypatch):
+    from app.core.config import Settings
+
+    assert Settings(environment="development").online_payments == "test"
+    assert Settings(environment="production").online_payments == "off"
+    assert Settings(environment="production", test_checkout=True).online_payments == "test"
+    assert Settings(environment="production", payment_provider="wipay").online_payments == "live"
+
+
+def test_cancelling_test_mode_checkout_too(client, setup, owner, test_mode):
+    order = _order(client, setup, setup["paid"], 1).json()
+    assert client.post(f"{setup['base']}/cancel", headers=owner).status_code == 200
+    after = _pay(client, order).json()
+    assert (after["status"], after["tickets"]) == ("cancelled", [])

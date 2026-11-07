@@ -69,6 +69,8 @@ class TicketTier(IdMixin, TimestampMixin, Base):
 
     @property
     def remaining(self) -> int:
+        """Unsold capacity, ignoring checkout holds. What a buyer can actually
+        get is `services.orders.available`, which subtracts holds."""
         return max(self.quantity - self.quantity_sold, 0)
 
 

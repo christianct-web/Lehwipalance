@@ -1,13 +1,23 @@
 """Orders: inventory holds, settlement and ticket issue.
 
-Inventory rule: a tier's available count is
-    quantity - quantity_sold - (tickets in pending online orders whose hold hasn't expired)
-Every write that can change it locks the tier rows first, so two buyers racing
-for the last ticket are served one at a time.
+Concurrency: every operation that reads or changes an event's inventory or
+status takes the event row lock first, then (if needed) the order, then the
+tiers: checkout, staff sales, payment settlement, tier edits and cancellation.
+So they run one at a time per event, always in the same lock order.
 
-A pending order that is paid after its hold expired is honoured if the tickets
-are still there; otherwise it is marked failed with the payment reference kept,
+Inventory: a tier's available count is
+    quantity - quantity_sold - (tickets in pending, unexpired, non-test orders)
+Tier capacity can't be cut below sold + held, and settlement re-checks
+capacity, so a sale never takes a tier past its quantity.
+
+Payment after the fact: if a payment arrives for an order whose tickets are
+gone (hold lapsed and sold out) it's marked failed; for an event that was
+cancelled, the order stays cancelled. Either way the payment reference is kept
 so the promoter can refund it.
+
+Simulated payments (test provider) create `is_test` orders: they get tickets for
+demonstration, but never hold or consume inventory, never count in reports, and
+are refused at the gate.
 """
 
 import logging
@@ -70,18 +80,33 @@ def display_status(order: Order) -> str:
     return "expired" if is_expired(order) else order.status.value
 
 
-def held_quantities(db: Session, tier_ids: Iterable[UUID]) -> dict[UUID, int]:
-    rows = db.execute(
+def lock_event(db: Session, event_id: UUID) -> Event | None:
+    """Take the event's row lock (see module docstring) and re-read it."""
+    return db.scalar(
+        select(Event)
+        .where(Event.id == event_id)
+        .with_for_update(of=Event)
+        .execution_options(populate_existing=True)
+    )
+
+
+def held_quantities(
+    db: Session, tier_ids: Iterable[UUID], exclude_order: UUID | None = None
+) -> dict[UUID, int]:
+    stmt = (
         select(OrderItem.tier_id, func.sum(OrderItem.quantity))
         .join(Order, Order.id == OrderItem.order_id)
         .where(
             OrderItem.tier_id.in_(list(tier_ids)),
             Order.status == OrderStatus.pending,
             Order.expires_at > utcnow(),
+            Order.is_test.is_(False),
         )
         .group_by(OrderItem.tier_id)
     )
-    return {tier_id: int(total) for tier_id, total in rows}
+    if exclude_order is not None:
+        stmt = stmt.where(Order.id != exclude_order)
+    return {tier_id: int(total) for tier_id, total in db.execute(stmt)}
 
 
 def available(tier: TicketTier, held: dict[UUID, int]) -> int:
@@ -98,7 +123,7 @@ def _lock_tiers(db: Session, event_id: UUID, tier_ids: list[UUID]) -> dict[UUID,
     tiers = db.scalars(
         select(TicketTier)
         .where(TicketTier.id.in_(tier_ids), TicketTier.event_id == event_id)
-        .order_by(TicketTier.id)  # fixed lock order, so two orders can't deadlock
+        .order_by(TicketTier.id)  # fixed lock order
         .with_for_update()
         .execution_options(populate_existing=True)
     ).all()
@@ -134,10 +159,11 @@ def place_order(
     seller: Seller | None = None,
     recorded_by: UUID | None = None,
 ) -> Order:
-    """Create an order. Online paid orders come back `pending` with a hold;
-    free orders and staff-recorded sales come back `paid` with tickets issued.
-    The caller commits."""
-    if event.status != EventStatus.published:
+    """Create an order. Online paid orders come back `pending` with a hold (or a
+    simulated `is_test` order in test mode); free orders and staff-recorded sales
+    come back `paid` with tickets issued. The caller commits."""
+    event = lock_event(db, event.id)
+    if event is None or event.status != EventStatus.published:
         raise SaleError(409, "This event isn't on sale")
 
     wanted: dict[UUID, int] = {}
@@ -173,6 +199,11 @@ def place_order(
             OrderItem(tier_id=tier_id, quantity=quantity, unit_price_minor=tier.price_minor)
         )
 
+    needs_payment = online and subtotal + buyer_fee > 0
+    payments = get_settings().online_payments
+    if needs_payment and payments == "off":
+        raise SaleError(409, "Online payments aren't open yet. Buy from a seller or at the gate.")
+
     order = Order(
         event_id=event.id,
         buyer_id=buyer.user_id,
@@ -188,10 +219,11 @@ def place_order(
         total_minor=subtotal + buyer_fee,
         access_token=new_token(),
         recorded_by=recorded_by,
+        is_test=needs_payment and payments == "test",
         items=items,
     )
     db.add(order)
-    if online and order.total_minor > 0:
+    if needs_payment:
         order.status = OrderStatus.pending
         order.expires_at = now + timedelta(minutes=get_settings().order_hold_minutes)
     else:
@@ -204,55 +236,78 @@ def place_order(
     return order
 
 
-def _lock_order(db: Session, order_id: UUID) -> Order | None:
-    return db.scalar(
+def _lock_order_and_event(db: Session, order_id: UUID) -> tuple[Order, Event]:
+    event_id = db.scalar(select(Order.event_id).where(Order.id == order_id))
+    if event_id is None:
+        raise SaleError(404, "Order not found")
+    event = lock_event(db, event_id)
+    order = db.scalar(
         select(Order)
         .where(Order.id == order_id)
         .with_for_update()
         .execution_options(populate_existing=True)
     )
+    return order, event
 
 
 def mark_paid(db: Session, order_id: UUID, reference: str) -> Order:
     """Settle a verified payment. Idempotent: a repeated callback is a no-op.
     The caller commits."""
-    order = _lock_order(db, order_id)
-    if order is None:
-        raise SaleError(404, "Order not found")
+    order, event = _lock_order_and_event(db, order_id)
     if order.status == OrderStatus.paid:
         return order
     if order.status != OrderStatus.pending:
-        log.warning("payment %s for order %s in status %s", reference, order.id, order.status)
+        log.warning(
+            "payment %s for order %s in status %s: refund due",
+            reference,
+            order.id,
+            order.status,
+        )
+        order.payment_reference = reference
+        return order
+    if event.status != EventStatus.published:
+        log.error("payment %s for order %s of a cancelled event: refund due", reference, order.id)
+        order.status = OrderStatus.cancelled
         order.payment_reference = reference
         return order
 
-    tiers = _lock_tiers(db, order.event_id, sorted({i.tier_id for i in order.items}))
-    if is_expired(order):
-        # The hold lapsed, so its tickets may have gone to someone else.
-        held = held_quantities(db, tiers)
+    order.payment_reference = reference
+    if not order.is_test:
+        tiers = _lock_tiers(db, order.event_id, sorted({i.tier_id for i in order.items}))
+        # This order's own hold doesn't count against it; everyone else's does.
+        held = held_quantities(db, tiers, exclude_order=order.id)
         if any(item.quantity > available(tiers[item.tier_id], held) for item in order.items):
-            log.error("order %s paid (%s) after its hold expired and sold out", order.id, reference)
+            log.error(
+                "order %s paid (%s) but its tickets are gone: refund due", order.id, reference
+            )
             order.status = OrderStatus.failed
-            order.payment_reference = reference
             return order
+        _commit_inventory(tiers, order)
 
     order.status = OrderStatus.paid
     order.paid_at = utcnow()
-    order.payment_reference = reference
-    _commit_inventory(tiers, order)
     _issue_tickets(db, order)
     db.flush()
     return order
 
 
 def mark_failed(db: Session, order_id: UUID, reference: str | None) -> Order:
-    order = _lock_order(db, order_id)
-    if order is None:
-        raise SaleError(404, "Order not found")
+    order, _ = _lock_order_and_event(db, order_id)
     if order.status == OrderStatus.pending:
         order.status = OrderStatus.failed
         order.payment_reference = reference
     return order
+
+
+def cancel_open_orders(db: Session, event_id: UUID) -> int:
+    """On event cancellation (caller holds the event lock): close every checkout
+    still waiting for payment, so a late payment can't issue tickets."""
+    result = db.execute(
+        update(Order)
+        .where(Order.event_id == event_id, Order.status == OrderStatus.pending)
+        .values(status=OrderStatus.cancelled)
+    )
+    return result.rowcount
 
 
 # ---------- Check-in ----------
@@ -260,7 +315,7 @@ def mark_failed(db: Session, order_id: UUID, reference: str | None) -> Order:
 
 @dataclass
 class CheckinResult:
-    result: str  # ok | already_checked_in | void | wrong_event | not_found
+    result: str  # ok | already_checked_in | void | test_ticket | wrong_event | not_found
     ticket: Ticket | None = None
     tier: TicketTier | None = None
     order: Order | None = None
@@ -278,6 +333,8 @@ def check_in(db: Session, event: Event, code: str, user_id: UUID) -> CheckinResu
     ticket, tier, order = row
     if tier.event_id != event.id:
         return CheckinResult("wrong_event", ticket, tier, order)
+    if order.is_test:
+        return CheckinResult("test_ticket", ticket, tier, order)
     # One conditional UPDATE, so two gates scanning the same ticket can't both admit it.
     done = db.execute(
         update(Ticket)

@@ -78,6 +78,8 @@ class OrderOut(BaseModel):
     paid_at: datetime | None
     access_token: str
     link: str
+    # Simulated payment: the tickets are for trying the flow and won't get anyone in.
+    is_test: bool
     tickets: list[TicketOut]
 
 
@@ -89,6 +91,8 @@ class OrderCreatedOut(OrderOut):
 class PublicConfigOut(BaseModel):
     payment_provider: str
     test_payments: bool
+    # live | test (simulated, banner shown) | off (paid online checkout closed)
+    online_payments: Literal["live", "test", "off"]
 
 
 # ---------- Promoter reports ----------
@@ -148,6 +152,7 @@ class PromoterOrderOut(BaseModel):
     checked_in: int
     total_minor: int
     link: str
+    is_test: bool
 
 
 class MySellerOut(BaseModel):
@@ -169,7 +174,7 @@ class CheckinStatsOut(BaseModel):
 
 
 class CheckinOut(CheckinStatsOut):
-    result: Literal["ok", "already_checked_in", "void", "wrong_event", "not_found"]
+    result: Literal["ok", "already_checked_in", "void", "test_ticket", "wrong_event", "not_found"]
     tier_name: str | None = None
     buyer_name: str | None = None
     checked_in_at: datetime | None = None

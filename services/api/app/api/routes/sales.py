@@ -136,7 +136,8 @@ def sales_report(org_id: UUID, event_id: UUID, member: OrgAdmin, db: DbSession) 
         select(TicketTier).where(TicketTier.event_id == event.id).order_by(TicketTier.sort_order)
     ).all()
     held = orders.held_quantities(db, [t.id for t in tiers])
-    paid = (Order.event_id == event.id, Order.status == OrderStatus.paid)
+    # Real sales only: simulated (test-provider) orders never count.
+    paid = (Order.event_id == event.id, Order.status == OrderStatus.paid, Order.is_test.is_(False))
 
     # Gross per tier from paid order lines (not price * sold, in case a price changed).
     tier_gross = dict(
@@ -170,7 +171,12 @@ def sales_report(org_id: UUID, event_id: UUID, member: OrgAdmin, db: DbSession) 
             func.coalesce(func.sum(tickets_per_order.c.n), 0),
             func.coalesce(func.sum(Order.subtotal_minor), 0),
         )
-        .outerjoin(Order, (Order.seller_id == Seller.id) & (Order.status == OrderStatus.paid))
+        .outerjoin(
+            Order,
+            (Order.seller_id == Seller.id)
+            & (Order.status == OrderStatus.paid)
+            & Order.is_test.is_(False),
+        )
         .outerjoin(tickets_per_order, tickets_per_order.c.order_id == Order.id)
         .where(Seller.event_id == event.id)
         .group_by(Seller.id)
@@ -244,7 +250,7 @@ def list_orders(
         .where(Order.event_id == event.id)
     )
     if not include_unpaid:
-        stmt = stmt.where(Order.status == OrderStatus.paid)
+        stmt = stmt.where(Order.status == OrderStatus.paid, Order.is_test.is_(False))
     if q:
         like = f"%{q.strip().lower()}%"
         stmt = stmt.where(
@@ -278,6 +284,7 @@ def list_orders(
             buyer_email=o.buyer_email,
             buyer_phone=o.buyer_phone,
             seller_name=seller_name,
+            is_test=o.is_test,
             tickets=counts.get(o.id, (0, 0))[0],
             checked_in=counts.get(o.id, (0, 0))[1],
             total_minor=o.total_minor,
@@ -294,7 +301,12 @@ def _count_tickets(db: Session, event: Event, only: TicketStatus | None = None) 
     stmt = (
         select(func.count(Ticket.id))
         .join(TicketTier, TicketTier.id == Ticket.tier_id)
-        .where(TicketTier.event_id == event.id, Ticket.status != TicketStatus.void)
+        .join(Order, Order.id == Ticket.order_id)
+        .where(
+            TicketTier.event_id == event.id,
+            Ticket.status != TicketStatus.void,
+            Order.is_test.is_(False),
+        )
     )
     if only is not None:
         stmt = stmt.where(Ticket.status == only)

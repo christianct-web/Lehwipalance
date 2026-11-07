@@ -13,6 +13,7 @@ const RESULT_TEXT: Record<CheckinResult["result"], string> = {
   void: "Ticket void",
   wrong_event: "Wrong event",
   not_found: "Not a valid ticket",
+  test_ticket: "Test ticket: not valid",
 };
 
 export default function Scan({ orgId, eventId }: { orgId: string; eventId: string }) {
@@ -20,6 +21,10 @@ export default function Scan({ orgId, eventId }: { orgId: string; eventId: strin
   const stats = useLoad(() => api.checkinStats(orgId, eventId), [orgId, eventId]);
   const [result, setResult] = useState<CheckinResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // `attempt` is what the camera effect depends on: 0 = never started, and each
+  // start or retry bumps it. `camera` is display state only, so moving from
+  // "starting" to "on" never re-runs (and so never tears down) the effect.
+  const [attempt, setAttempt] = useState(0);
   const [camera, setCamera] = useState<"off" | "starting" | "on" | "denied">("off");
   const [manual, setManual] = useState("");
   const video = useRef<HTMLVideoElement>(null);
@@ -46,11 +51,15 @@ export default function Scan({ orgId, eventId }: { orgId: string; eventId: strin
         busy.current = false;
       }
     },
-    [orgId, eventId, stats],
+    [orgId, eventId, stats.setData],
   );
+  // The scanning loop reads the latest submit through a ref, so it never restarts.
+  const submitRef = useRef(submit);
+  submitRef.current = submit;
 
   useEffect(() => {
-    if (camera !== "starting") return;
+    if (attempt === 0) return;
+    setCamera("starting");
     let stream: MediaStream | null = null;
     let frame = 0;
     let stopped = false;
@@ -72,7 +81,7 @@ export default function Scan({ orgId, eventId }: { orgId: string; eventId: strin
           ctx.drawImage(v, (w - side) / 2, (h - side) / 2, side, side, 0, 0, size, size);
           const img = ctx.getImageData(0, 0, size, size);
           const code = jsQR(img.data, size, size, { inversionAttempts: "dontInvert" });
-          if (code?.data) submit(code.data);
+          if (code?.data) submitRef.current(code.data);
         }
       }
       frame = requestAnimationFrame(tick);
@@ -90,7 +99,7 @@ export default function Scan({ orgId, eventId }: { orgId: string; eventId: strin
         setCamera("on");
         frame = requestAnimationFrame(tick);
       })
-      .catch(() => setCamera("denied"));
+      .catch(() => !stopped && setCamera("denied"));
     if (!navigator.mediaDevices) setCamera("denied");
 
     return () => {
@@ -98,9 +107,7 @@ export default function Scan({ orgId, eventId }: { orgId: string; eventId: strin
       cancelAnimationFrame(frame);
       stream?.getTracks().forEach((t) => t.stop());
     };
-    // Restart only when the user turns the camera on.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [camera === "starting"]);
+  }, [attempt]);
 
   const onManual = (e: FormEvent) => {
     e.preventDefault();
@@ -141,7 +148,7 @@ export default function Scan({ orgId, eventId }: { orgId: string; eventId: strin
         <video ref={video} playsInline muted hidden={camera !== "on"} />
         <canvas ref={canvas} hidden />
         {camera === "off" && (
-          <button className="btn btn-primary" onClick={() => setCamera("starting")}>
+          <button className="btn btn-primary" onClick={() => setAttempt((n) => n + 1)}>
             Start camera
           </button>
         )}
@@ -149,7 +156,10 @@ export default function Scan({ orgId, eventId }: { orgId: string; eventId: strin
         {camera === "denied" && (
           <p>
             Camera unavailable. Allow camera access for this site (it must be opened over https), or type the code
-            below.
+            below.{" "}
+            <button className="link-btn" onClick={() => setAttempt((n) => n + 1)}>
+              Try again
+            </button>
           </p>
         )}
       </div>

@@ -65,7 +65,19 @@ export default function OrderPage({ orderId }: { orderId: string }) {
             <Link href={`/e/${order.event.slug}`}>Back to the event</Link>
           </Notice>
         )}
-        {(order.status === "refunded" || order.status === "cancelled") && <Notice>This order was {order.status}.</Notice>}
+        {order.status === "refunded" && <Notice>This order was refunded.</Notice>}
+        {order.status === "cancelled" && (
+          <Notice>
+            This order was cancelled, so no tickets were issued. If you were charged, contact the promoter with this
+            order link for a refund.
+          </Notice>
+        )}
+        {order.is_test && (
+          <Notice kind="info">
+            Test order: the payment was simulated. These tickets are for trying things out and won't be accepted at the
+            gate.
+          </Notice>
+        )}
 
         {order.status === "paid" && (
           <>

@@ -46,7 +46,9 @@ def _email_tickets(background: BackgroundTasks, order: Order, event: Event) -> N
 def public_config() -> PublicConfigOut:
     settings = get_settings()
     return PublicConfigOut(
-        payment_provider=settings.payment_provider, test_payments=settings.test_payments
+        payment_provider=settings.payment_provider,
+        test_payments=settings.test_payments,
+        online_payments=settings.online_payments,
     )
 
 

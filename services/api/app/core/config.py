@@ -22,6 +22,10 @@ class Settings(BaseSettings):
     # Payments. "test" simulates a hosted checkout (no real money) until the
     # WiPay account is approved; "wipay" plugs in wipay-connect.
     payment_provider: str = "test"
+    # With the test provider: whether the public can place simulated paid orders.
+    # Unset means on in development and OFF in production, so a live pilot (real
+    # cash sales) can't be mixed with simulated online sales by accident.
+    test_checkout: bool | None = None
     order_hold_minutes: int = 15
     wipay_account_number: str = ""
     wipay_api_key: str = ""
@@ -57,6 +61,15 @@ class Settings(BaseSettings):
     @property
     def test_payments(self) -> bool:
         return self.payment_provider == "test"
+
+    @property
+    def online_payments(self) -> str:
+        """live: a real provider. test: simulated (orders flagged is_test, never
+        admitted, outside inventory and reports). off: paid online checkout closed."""
+        if not self.test_payments:
+            return "live"
+        enabled = self.test_checkout if self.test_checkout is not None else not self.is_production
+        return "test" if enabled else "off"
 
     def check_production(self) -> None:
         """Refuse to boot a production server with development defaults."""

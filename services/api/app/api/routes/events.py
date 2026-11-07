@@ -6,8 +6,8 @@ from sqlalchemy.orm import selectinload
 
 from app.api.deps import DbSession
 from app.models import Event, EventStatus
-from app.schemas.events import EventDetailOut, EventSummaryOut, FeeQuoteOut
-from app.services import fees
+from app.schemas.events import EventDetailOut, EventSummaryOut, FeeQuoteOut, TierOut
+from app.services import fees, orders
 
 router = APIRouter(prefix="/v1", tags=["events"])
 
@@ -27,7 +27,7 @@ def list_events(
 
 
 @router.get("/events/{slug}", response_model=EventDetailOut)
-def get_event(slug: str, db: DbSession) -> Event:
+def get_event(slug: str, db: DbSession) -> EventDetailOut:
     event = db.scalar(
         select(Event)
         .where(Event.slug == slug, Event.status == EventStatus.published)
@@ -35,7 +35,21 @@ def get_event(slug: str, db: DbSession) -> Event:
     )
     if event is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Event not found")
-    return event
+    # Same availability rule as checkout: tickets in someone's checkout aren't free.
+    held = orders.held_quantities(db, [t.id for t in event.tiers])
+    out = EventDetailOut.model_validate(event, from_attributes=True)
+    out.tiers = [
+        TierOut(
+            id=t.id,
+            name=t.name,
+            price_minor=t.price_minor,
+            currency=t.currency,
+            remaining=orders.available(t, held),
+            max_per_order=t.max_per_order,
+        )
+        for t in event.tiers
+    ]
+    return out
 
 
 @router.get("/fees/quote", response_model=FeeQuoteOut)
