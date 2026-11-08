@@ -34,7 +34,9 @@ from app.core.config import get_settings
 from app.core.time import aware, utcnow
 from app.models import (
     Event,
-    EventStatus,
+    Listing,
+    ListingStatus,
+    ListingType,
     Order,
     OrderItem,
     OrderStatus,
@@ -44,7 +46,7 @@ from app.models import (
     TicketStatus,
     TicketTier,
 )
-from app.services import fees
+from app.services import countries, fees
 
 log = logging.getLogger(__name__)
 
@@ -81,12 +83,21 @@ def display_status(order: Order) -> str:
 
 
 def lock_event(db: Session, event_id: UUID) -> Event | None:
-    """Take the event's row lock (see module docstring) and re-read it."""
+    """Take the event's row lock (see module docstring) and re-read it.
+
+    The lock is taken on the `listings` row, which is the one every category
+    shares and so the one all callers can agree on. An event spans two tables,
+    and `FOR UPDATE` over that join would have to name a table anyway.
+    """
+    locked = db.scalar(
+        select(Listing.id)
+        .where(Listing.id == event_id, Listing.type == ListingType.event)
+        .with_for_update()
+    )
+    if locked is None:
+        return None
     return db.scalar(
-        select(Event)
-        .where(Event.id == event_id)
-        .with_for_update(of=Event)
-        .execution_options(populate_existing=True)
+        select(Event).where(Event.id == event_id).execution_options(populate_existing=True)
     )
 
 
@@ -163,7 +174,7 @@ def place_order(
     simulated `is_test` order in test mode); free orders and staff-recorded sales
     come back `paid` with tickets issued. The caller commits."""
     event = lock_event(db, event.id)
-    if event is None or event.status != EventStatus.published:
+    if event is None or event.status != ListingStatus.published:
         raise SaleError(409, "This event isn't on sale")
 
     wanted: dict[UUID, int] = {}
@@ -175,6 +186,7 @@ def place_order(
     held = held_quantities(db, wanted)
 
     now = utcnow()
+    fee_config = countries.fee_config(db, event.country_code)
     online = channel == SalesChannel.online
     subtotal = buyer_fee = promoter_fee = 0
     items = []
@@ -190,7 +202,7 @@ def place_order(
         if quantity > left:
             msg = f"{tier.name} is sold out" if left == 0 else f"Only {left} {tier.name} left"
             raise SaleError(409, msg)
-        q = fees.quote(tier.price_minor, quantity)
+        q = fees.quote(tier.price_minor, quantity, fee_config)
         subtotal += q.subtotal_minor
         # Cash buyers pay face value; the buyer fee is an online-checkout charge.
         buyer_fee += q.buyer_fee_minor if online else 0
@@ -212,7 +224,7 @@ def place_order(
         buyer_phone=buyer.phone,
         seller_id=seller.id if seller else None,
         channel=channel,
-        currency="TTD",
+        currency=fee_config.currency,
         subtotal_minor=subtotal,
         buyer_fee_minor=buyer_fee,
         promoter_fee_minor=promoter_fee,
@@ -265,7 +277,7 @@ def mark_paid(db: Session, order_id: UUID, reference: str) -> Order:
         )
         order.payment_reference = reference
         return order
-    if event.status != EventStatus.published:
+    if event.status != ListingStatus.published:
         log.error("payment %s for order %s of a cancelled event: refund due", reference, order.id)
         order.status = OrderStatus.cancelled
         order.payment_reference = reference

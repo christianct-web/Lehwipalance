@@ -1,0 +1,11 @@
+# The API image copies only pyproject.toml, app/, alembic/ and alembic.ini.
+# Keep the rest out of the build context.
+.venv
+venv
+__pycache__
+.pytest_cache
+.ruff_cache
+*.egg-info
+tests
+.env
+.env.example

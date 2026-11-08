@@ -18,6 +18,7 @@ import app.models  # noqa: E402,F401
 from app.db.base import Base  # noqa: E402
 from app.db.session import get_db  # noqa: E402
 from app.main import app  # noqa: E402
+from app.models import Country, ListingType  # noqa: E402
 
 
 @pytest.fixture
@@ -29,6 +30,23 @@ def db_session():
     )
     Base.metadata.create_all(engine)
     session = sessionmaker(bind=engine, expire_on_commit=False)()
+    # The one live market, as migration 0005 seeds it, so tests resolve fees
+    # and currency the same way the deployed app does.
+    session.add(
+        Country(
+            code="TT",
+            name="Trinidad and Tobago",
+            currency="TTD",
+            timezone="America/Port_of_Spain",
+            is_live=True,
+            buyer_fee_bps=450,
+            buyer_fee_fixed_minor=300,
+            promoter_fee_bps=300,
+            enabled_listing_types=[t.value for t in ListingType],
+            delivery_enabled=False,
+        )
+    )
+    session.commit()
     try:
         yield session
     finally:

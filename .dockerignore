@@ -1,0 +1,29 @@
+# Build context hygiene. The web image builds from the repository root
+# (docker-compose.prod.yml sets context: .), so without this it ships the
+# Flutter app, every node_modules and any local virtualenv to the daemon.
+.git
+.github
+
+# Local tooling and build output, never needed inside an image
+**/.venv
+**/venv
+**/node_modules
+**/__pycache__
+**/.pytest_cache
+**/.ruff_cache
+**/*.egg-info
+**/.dart_tool
+apps/promoter-portal/dist
+
+# The Flutter customer app is not part of any image
+apps/customer
+
+# Secrets are passed as environment, never copied in
+.env
+.env.*
+!.env.example
+!.env.production.example
+
+# Operational files that live beside the deployment
+backups
+*.bak-*

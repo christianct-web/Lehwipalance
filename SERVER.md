@@ -18,8 +18,7 @@ public address is given separately in `PUBLIC_BASE_URL` and `CORS_ORIGINS`.
 `docker-compose.prod.yml` was changed from hardcoded `80:80`/`443:443` to
 `${HTTP_BIND:-0.0.0.0:80}` / `${HTTPS_BIND:-0.0.0.0:443}`, matching the pattern
 Sookhai already uses. Defaults are unchanged, so a stack that *does* own the
-machine's web ports still works with no `.env` entries. **This edit is not yet
-committed**, so `git pull` will conflict until it is.
+machine's web ports still works with no `.env` entries. This edit is committed.
 
 ## Current configuration
 

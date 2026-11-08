@@ -11,6 +11,10 @@ web
 - **Fete-goers and their crews** in Trinidad & Tobago. Mobile, often on patchy
   data, deciding socially: a crew agrees on a fete and someone buys. They share
   by WhatsApp, not email.
+- **Everyone discovering anything else on the island** — somewhere to stay, a
+  tour, a caterer, a store. Same person, different errand.
+- **Accommodation hosts, tour operators, vendors and store owners.** Supply for
+  the four non-event categories. None is signed yet.
 - **Promoters and their committees.** Create a fete, set tiers, run committee
   and box-office cash sales, watch sales live, get paid.
 - **Committee sellers** — members selling for cash against a personal link.
@@ -19,26 +23,44 @@ web
 
 ## Product Purpose
 
-The Carnival season planner for you and your crew, and the ticketing desk that
-pays promoters before the fete. Success is winning Trinidad Carnival fete
-ticketing by being cheaper and faster for promoters than Island eTickets.
+**Scope decision of 2026-11-08: build the full original concept.** All five
+listing categories — events, accommodation, vacation, services and stores —
+plus the social layer around them: filter profiles, followings, reviews,
+collaborators, the media feed and the agenda. This reverses the narrowing
+recommended in `docs/market-and-economics.md` and previously recorded here.
+The client's own vision in `docs/original-concept.md` is the governing scope.
+
+**Market: Trinidad & Tobago only at launch** (2026-11-08). The schema is
+per-country from the start — fee rates, currency and category availability all
+live on the `countries` row — but T&T is the only market seeded or live. Another
+market needs a payment rail that works there plus its own consumer-protection,
+refund and tax position, so none is enabled by default.
+
+Lehwi Palance is where Trinidad & Tobago finds what's happening and what it
+needs — and the ticketing desk that pays promoters before the fete. Events and
+Carnival fete ticketing remain the wedge that earns the audience; they are no
+longer the whole product.
 
 ## Positioning
 
-Promoter-first economics the incumbent cannot match without cutting its own
-take: buyer pays 4.5% + TT$3 per ticket, promoter pays 3%. Island eTickets
-charges promoters 8% plus buyer processing fees, pays out 5 business days after
-the event, and holds discretionary reserves. Early payout — money before the
-fete, not after — is the wedge. Fee model is implemented, not aspirational
-(`services/api/app/services/fees.py`).
+Against Trinbago Events, which already combines discovery, calendar, map and
+ticketing, the answer is the social discovery layer plus categories it does not
+carry. Against Island eTickets, the answer is promoter economics it cannot
+match without cutting its own take: buyer pays 4.5% + TT$3 per ticket, promoter
+pays 3%. Island eTickets charges promoters 8% plus buyer processing fees, pays
+out 5 business days after the event, and holds discretionary reserves. Early
+payout — money before the fete, not after — is the wedge. The fee model is
+implemented, not aspirational (`services/api/app/services/fees.py`), and is now
+per market (`app/services/countries.py`).
 
 ## Operating Context
 
 - ~300 fetes per Carnival season. 2026 prices: TT$250–600 cooler fetes,
   TT$950–2,200 all-inclusive.
-- Carnival 2027 is **8–9 Feb 2027**; 2027 fete sales are already open. Launch
-  target is a 2027 pilot (late-season and post-Carnival events) then the full
-  2028 season.
+- Carnival 2027 is **8–9 Feb 2027**. **The 2027 pilot is dropped** (decision of
+  2026-11-08): the full concept comes first, so the launch target is the 2028
+  season. Nothing goes live until then, so there is no production data to
+  protect during the build.
 - **Cash is a primary channel, not an edge case.** Committee sellers and the box
   office issue real tickets; a pilot can run entirely on cash sales with online
   card payment switched off.
@@ -60,16 +82,42 @@ upload.
 today), ticket transfer by phone number, offline check-in sync, member invites
 for people without an account, `RealApiService` in the Flutter customer app.
 
-**Deferred by product decision:** accommodation, vacation, services, stores and
-the reels/media feed from the original concept. The stored-value wallet is cut.
+**Foundation built (Phase A, 2026-11-08):** `countries` holds currency, fee
+rates and per-category availability per market, with T&T seeded and live.
+`events` is now `listings` (a typed base carrying everything discovery touches)
+plus `event_details`, so all five categories and the whole social layer attach
+to one indexed table. Migrations 0005 and 0006; fee rates resolve per country
+through `app/services/countries.py`.
+
+**Now in scope, not yet built:** the discovery and social layer (calendar, map,
+filter profiles, followings, reviews, collaborators, agenda, reminders, the
+media feed) and the four non-event categories, in cost order — services,
+accommodation, vacation, stores.
+
+**Blocked, and not by scope:**
+- **The stored-value wallet stays cut** pending a legal opinion on the Central
+  Bank's E-Money Issuer Order. Store and delivery carts pay per transaction.
+- **FaceCard** needs a Data Protection Act position and a consent flow before it
+  is a build task. QR ships; NFC stays read-only (iOS will not emulate a card).
+- **Food delivery** needs couriers on the ground, not a flag. `countries`
+  gates it and it is off.
+- **The concept's 2% + US$0.50 ticket fee contradicts the implemented rates**
+  (4.5% + TT$3 buyer, 3% promoter). At ~TT$6.80/US$ on a TT$300 ticket the
+  concept's rate yields ~TT$9.40 against WiPay's ~TT$12.20 cost — loss-making
+  per card sale unless processing is passed to the buyer separately. The
+  implemented rates are seeded; the client must confirm which was meant.
 
 **Hard constraints:**
 - No card data in our systems; cards are entered only on WiPay's hosted page.
 - No stored-value wallet until there is a legal opinion on the Central Bank's
   E-Money Issuer Order.
-- Money is integer minor units with an explicit currency. Currency is TTD.
+- Money is integer minor units with an explicit currency, taken from the
+  listing's market. One order is one market and one currency; no cross-border
+  baskets, so no FX in the ledger.
 - Simulated orders are flagged, refused at the gate, and excluded from both
   inventory and sales figures. A simulated ticket must never read as a real one.
+  As categories arrive, `is_test` must propagate to bookings and store orders
+  and be refused at every point of fulfilment, not only at the gate.
 
 **Terminology:** fete, promoter, committee, seller, cooler fete, all-inclusive,
 palance, lime.
@@ -92,10 +140,12 @@ palance, lime.
   single-colour variant for small sizes and dark surfaces. The original
   `apps/customer/assets/logo1.jpeg` is an opaque JPEG on a white box with no
   vector and cannot sit on a non-white surface.
-- **Retired:** the tagline "FIND IT. VIBE IT. LIVE IT." (written for the old
-  five-category marketplace, not the Carnival ticketing wedge) and
-  `assets/cover_image1.jpg` (a stock beach-party scene; Carnival fetes are not
-  beach limes, and it reads as Caribbean-from-outside).
+- **Un-retired for reconsideration:** the tagline "FIND IT. VIBE IT. LIVE IT."
+  was retired *because* it was written for the five-category marketplace rather
+  than the ticketing wedge. That reasoning no longer holds now the five
+  categories are back; the tagline is an open question again, not a decision.
+- **Retired:** `assets/cover_image1.jpg` (a stock beach-party scene; Carnival
+  fetes are not beach limes, and it reads as Caribbean-from-outside).
 - The promoter-portal code's `#e8432e` on cream `#fbf8f4` is scaffold, not
   brand, and is replaced by the spectrum above.
 - The Flutter app's `app_colors.dart` is four untouched Material 3 palettes and
@@ -109,7 +159,10 @@ palance, lime.
 - Implemented fee model with a worked comparison table
   (`docs/market-and-economics.md`, `services/api/app/services/fees.py`).
 - Market and economics analysis of 18 Oct 2026 (summary in repo; the full
-  document with sources is held by Mana Labs 8 and takes precedence).
+  document with sources is held by Mana Labs 8 and takes precedence). **Its
+  central recommendation to narrow the product is superseded**; its figures,
+  costs and risks still stand, but the break-even calculation assumed the
+  narrow build and the implemented fee rates.
 - The client's own product vision (`docs/original-concept.md`).
 - Live deployment at https://lehwi.187-77-18-154.sslip.io
 - **Absences that must not be fabricated:** no pilot promoters signed yet (3–5
@@ -122,7 +175,8 @@ palance, lime.
 ## Product Principles
 
 1. **Promoter trust outranks consumer polish.** This must look like somewhere
-   real money routes. Weighted to promoters for the 2027 pilot push.
+   real money routes. That now has to hold while accommodation and vacation
+   listings pull hard toward the tourist-brochure register the brand rules out.
 2. **Cash and committee sales are first-class.** A fete can run with online card
    payment switched off entirely; the design must not treat that as degraded.
 3. **Mobile and low-bandwidth first.** WhatsApp is the share channel.

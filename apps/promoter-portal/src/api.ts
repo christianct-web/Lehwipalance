@@ -100,6 +100,9 @@ export type EventSummary = {
   title: string;
   category: string;
   venue_name: string | null;
+  city: string | null;
+  // ISO 3166-1 alpha-2. Only "TT" is live; see the API's countries table.
+  country_code: string;
   starts_at: string;
   cover_image_url: string | null;
 };
@@ -146,6 +149,7 @@ export type Order = {
 export type OrderCreated = Order & { checkout_url: string | null };
 
 export type FeeQuote = {
+  currency: string;
   subtotal_minor: number;
   buyer_fee_minor: number;
   total_minor: number;

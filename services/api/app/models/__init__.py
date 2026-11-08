@@ -1,6 +1,11 @@
 """Import every model here so Alembic autogenerate sees the full schema."""
 
-from app.models.event import Event, EventCategory, EventStatus, Seller, TicketTier
+from app.models.collaborator import ListingCollaborator
+from app.models.country import Country
+from app.models.event import Event, EventCategory, Seller, TicketTier
+from app.models.filter_profile import DatePreference, FilterProfile, PriceBand
+from app.models.inquiry import Inquiry, InquiryStatus
+from app.models.listing import Listing, ListingStatus, ListingTag, ListingType
 from app.models.order import (
     Order,
     OrderItem,
@@ -10,19 +15,40 @@ from app.models.order import (
     TicketStatus,
 )
 from app.models.organisation import MemberRole, Organisation, OrgMember
+from app.models.review import Review, ReviewSection, ReviewSectionRating
+from app.models.service import PriceModel, ServiceCategory, ServiceListing
+from app.models.social import Favourite, Follow
 from app.models.user import User
 
 __all__ = [
+    "Country",
+    "DatePreference",
     "Event",
     "EventCategory",
-    "EventStatus",
+    "Favourite",
+    "FilterProfile",
+    "Follow",
+    "Inquiry",
+    "InquiryStatus",
+    "Listing",
+    "ListingCollaborator",
+    "ListingStatus",
+    "ListingTag",
+    "ListingType",
     "MemberRole",
     "Order",
     "OrderItem",
     "OrderStatus",
     "OrgMember",
+    "PriceBand",
+    "PriceModel",
+    "Review",
+    "ReviewSection",
+    "ReviewSectionRating",
     "Organisation",
     "SalesChannel",
+    "ServiceCategory",
+    "ServiceListing",
     "Seller",
     "Ticket",
     "TicketStatus",

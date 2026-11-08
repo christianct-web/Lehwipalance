@@ -3,7 +3,22 @@ import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.routes import auth, events, health, orders, promoter, sales, uploads
+from app.api.routes import (
+    auth,
+    events,
+    filter_profiles,
+    health,
+    inquiries,
+    listings,
+    orders,
+    organisations,
+    promoter,
+    reviews,
+    sales,
+    services,
+    social,
+    uploads,
+)
 from app.core.config import get_settings
 from app.services import payments
 
@@ -32,6 +47,18 @@ def create_app() -> FastAPI:
     app.include_router(health.router)
     app.include_router(auth.router)
     app.include_router(events.router)
+    app.include_router(listings.router)
+    app.include_router(filter_profiles.router)
+    app.include_router(filter_profiles.feed_router)
+    app.include_router(social.router)
+    app.include_router(social.public)
+    app.include_router(reviews.router)
+    app.include_router(organisations.public)
+    app.include_router(organisations.listing_public)
+    app.include_router(organisations.manage)
+    app.include_router(services.router)
+    app.include_router(inquiries.customer)
+    app.include_router(inquiries.vendor)
     app.include_router(orders.router)
     app.include_router(promoter.router)
     app.include_router(sales.router)

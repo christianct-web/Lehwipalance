@@ -6,7 +6,7 @@ from uuid import UUID
 
 from pydantic import AwareDatetime, BaseModel, ConfigDict, EmailStr, Field, model_validator
 
-from app.models import EventCategory, EventStatus, MemberRole
+from app.models import EventCategory, ListingStatus, MemberRole
 
 # ---------- Organisations ----------
 
@@ -103,7 +103,7 @@ class PromoterEventSummaryOut(BaseModel):
     slug: str
     title: str
     category: EventCategory
-    status: EventStatus
+    status: ListingStatus
     venue_name: str | None
     starts_at: datetime
 
