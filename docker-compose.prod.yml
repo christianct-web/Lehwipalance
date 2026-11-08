@@ -33,9 +33,13 @@ services:
       DOMAIN: ${DOMAIN:?set DOMAIN in .env}
       ACME_EMAIL: ${ACME_EMAIL:?set ACME_EMAIL in .env}
     ports:
-      - "80:80"
-      - "443:443"
-      - "443:443/udp"
+      # Defaults own the machine's web ports so Caddy here gets its own
+      # certificate. When something else already serves 80/443, bind to
+      # localhost instead (HTTP_BIND=127.0.0.1:8082) and set DOMAIN=:80 so the
+      # existing proxy terminates TLS and forwards here.
+      - "${HTTP_BIND:-0.0.0.0:80}:80"
+      - "${HTTPS_BIND:-0.0.0.0:443}:443"
+      - "${HTTPS_BIND:-0.0.0.0:443}:443/udp"
     volumes:
       - caddy-data:/data
       - caddy-config:/config

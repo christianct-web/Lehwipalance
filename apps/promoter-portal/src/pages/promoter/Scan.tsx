@@ -20,6 +20,7 @@ export default function Scan({ orgId, eventId }: { orgId: string; eventId: strin
   const { data: event } = useLoad(() => api.orgEvent(orgId, eventId), [orgId, eventId]);
   const stats = useLoad(() => api.checkinStats(orgId, eventId), [orgId, eventId]);
   const [result, setResult] = useState<CheckinResult | null>(null);
+  const [scanSeq, setScanSeq] = useState(0);
   const [error, setError] = useState<string | null>(null);
   // `attempt` is what the camera effect depends on: 0 = never started, and each
   // start or retry bumps it. `camera` is display state only, so moving from
@@ -42,6 +43,7 @@ export default function Scan({ orgId, eventId }: { orgId: string; eventId: strin
       try {
         const r = await api.checkIn(orgId, eventId, code);
         setResult(r);
+        setScanSeq((n) => n + 1);
         setError(null);
         stats.setData({ checked_in: r.checked_in, total: r.total });
         navigator.vibrate?.(r.result === "ok" ? 80 : [60, 60, 60]);
@@ -131,15 +133,19 @@ export default function Scan({ orgId, eventId }: { orgId: string; eventId: strin
       <div className={`scanner-result scanner-${tone}`} aria-live="assertive">
         {result ? (
           <>
-            <strong>{RESULT_TEXT[result.result]}</strong>
-            {result.tier_name && <span>{result.tier_name}</span>}
-            {result.buyer_name && <span>{result.buyer_name}</span>}
+            {/* Keyed on the code so a second scan of the same result still
+                re-lands the stamp: staff need to see that it registered. */}
+            <strong className="scanner-verdict" key={scanSeq}>
+              {RESULT_TEXT[result.result]}
+            </strong>
+            {result.tier_name && <span className="scanner-sub">{result.tier_name}</span>}
+            {result.buyer_name && <span className="scanner-sub">{result.buyer_name}</span>}
             {result.result === "already_checked_in" && result.checked_in_at && (
               <span>at {timeOnly(result.checked_in_at)}</span>
             )}
           </>
         ) : (
-          <span>Point the camera at a ticket QR code</span>
+          <span className="scanner-sub">Point the camera at a ticket QR code</span>
         )}
         {error && <span>{error}</span>}
       </div>
@@ -148,9 +154,17 @@ export default function Scan({ orgId, eventId }: { orgId: string; eventId: strin
         <video ref={video} playsInline muted hidden={camera !== "on"} />
         <canvas ref={canvas} hidden />
         {camera === "off" && (
-          <button className="btn btn-primary" onClick={() => setAttempt((n) => n + 1)}>
-            Start camera
-          </button>
+          /* The frame shows where the code must land before the camera is
+             even on, so staff can aim the phone on the first try. */
+          <div className="viewfinder">
+            <span className="viewfinder-corner tl" />
+            <span className="viewfinder-corner tr" />
+            <span className="viewfinder-corner bl" />
+            <span className="viewfinder-corner br" />
+            <button className="btn btn-primary" onClick={() => setAttempt((n) => n + 1)}>
+              Start camera
+            </button>
+          </div>
         )}
         {camera === "starting" && <p>Starting camera…</p>}
         {camera === "denied" && (
@@ -166,7 +180,7 @@ export default function Scan({ orgId, eventId }: { orgId: string; eventId: strin
 
       <form className="scanner-manual" onSubmit={onManual}>
         <input
-          placeholder="Or type / paste a ticket code"
+          placeholder="Type a ticket code"
           value={manual}
           onChange={(e) => setManual(e.target.value)}
           autoCapitalize="off"

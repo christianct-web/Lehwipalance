@@ -138,7 +138,7 @@ function Overview({
         <div className="card callout">
           <strong>On sale</strong>
           <p>
-            <a href={publicUrl} target="_blank" rel="noreferrer">
+            <a className="wrap-anywhere" href={publicUrl} target="_blank" rel="noreferrer">
               {publicUrl}
             </a>
           </p>
@@ -154,16 +154,18 @@ function Overview({
 
       {r && (
         <>
-          <div className="stats">
-            <Stat label="Tickets sold" value={String(r.tickets_sold)} />
-            <Stat label="Face value sold" value={money(r.gross_minor)} />
-            <Stat label="Your payout" value={money(r.payout_minor)} hint={`after ${money(r.promoter_fees_minor)} fees`} />
-            <Stat label="Cash with sellers" value={money(r.cash_collected_minor)} hint="included in face value" />
-            <Stat label="Checked in" value={`${r.checked_in} / ${r.tickets_sold}`} />
-          </div>
+          <ul className="ledger">
+            <Line k="Tickets sold" v={String(r.tickets_sold)} />
+            <Line k="Face value sold" v={money(r.gross_minor)} />
+            <Line k="Our fee (3% of face value)" v={r.promoter_fees_minor ? `\u2212${money(r.promoter_fees_minor)}` : money(0)} />
+            <Line k="Your payout" v={money(r.payout_minor)} total />
+            <Line k="Of that, cash already with sellers" v={money(r.cash_collected_minor)} />
+            <Line k="Checked in at the gate" v={`${r.checked_in} / ${r.tickets_sold}`} />
+          </ul>
 
           <h3>By tier</h3>
-          <table className="table">
+          <div className="table-scroll">
+          <table className="table report-table">
             <thead>
               <tr>
                 <th>Tier</th>
@@ -189,6 +191,7 @@ function Overview({
               ))}
             </tbody>
           </table>
+          </div>
 
           {r.sellers.length > 0 && (
             <>
@@ -225,23 +228,30 @@ function Overview({
       )}
 
       {event.status !== "cancelled" && (
-        <p>
-          <button className="link-btn danger" onClick={cancel} disabled={action.busy}>
+        <div className="danger-zone">
+          <div>
+            <strong>Cancel this event</strong>
+            <p className="agate">
+              Takes it off sale immediately. Tickets already sold are not refunded automatically.
+            </p>
+          </div>
+          <button className="btn btn-ghost btn-sm danger" onClick={cancel} disabled={action.busy}>
             Cancel event
           </button>
-        </p>
+        </div>
       )}
     </div>
   );
 }
 
-function Stat({ label, value, hint }: { label: string; value: string; hint?: string }) {
+/** One ruled line of the account. Money sits on a single right-hand axis so
+ *  the figures can be read down the column without reading the labels. */
+function Line({ k, v, total }: { k: string; v: string; total?: boolean }) {
   return (
-    <div className="stat">
-      <span className="stat-label">{label}</span>
-      <strong className="stat-value">{value}</strong>
-      {hint && <span className="muted small">{hint}</span>}
-    </div>
+    <li className={total ? "ledger-total" : undefined}>
+      <span className="k">{k}</span>
+      <span className="v">{v}</span>
+    </li>
   );
 }
 

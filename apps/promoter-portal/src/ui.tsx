@@ -9,6 +9,7 @@ import {
   type ReactNode,
 } from "react";
 import { api, getToken, setToken, type OnlinePayments, type User } from "./api";
+import { Mark } from "./brand";
 import { Link } from "./router";
 
 // ---------- Data loading ----------
@@ -113,27 +114,50 @@ export const useConfig = () => useContext(ConfigContext);
 
 // ---------- Layout ----------
 
-export function Shell({ children, wide, nav }: { children: ReactNode; wide?: boolean; nav?: ReactNode }) {
+export function Shell({
+  children,
+  wide,
+  nav,
+  flush,
+}: {
+  children: ReactNode;
+  wide?: boolean;
+  /** Pages that run edge to edge (the feed) opt out of the centred column. */
+  flush?: boolean;
+  nav?: ReactNode;
+}) {
   const { onlinePayments } = useConfig();
   return (
     <>
       {onlinePayments === "test" && (
         <div className="test-banner" role="status">
-          Test mode: payments are simulated, no money is charged, and test tickets won't get you in.
+          <strong>Test mode</strong> · Demo tickets only — no money is charged and these won't get you in.
         </div>
       )}
       <header className="site-header">
         <div className={wide ? "wrap wide" : "wrap"}>
-          <Link href="/" className="brand">
-            Lehwi <span>Palance</span>
+          <Link href="/" className="logo" aria-label="Lehwi Palance, home">
+            <Mark size={30} />
+            <span className="logo-word" style={{ fontSize: 19 }}>
+              <span className="logo-lehwi">Lehwi</span>
+              <span className="logo-palance">Palance</span>
+            </span>
           </Link>
-          <nav className="site-nav">{nav}</nav>
+          <nav className="site-nav">
+            {nav ?? (
+              <>
+                <Link href="/">Explore</Link>
+                <Link href="/tickets">My tickets</Link>
+                <Link href="/promoter">For promoters</Link>
+              </>
+            )}
+          </nav>
         </div>
       </header>
-      <main className={wide ? "wrap wide" : "wrap"}>{children}</main>
+      <main className={flush ? "flush" : wide ? "wrap wide" : "wrap"}>{children}</main>
       <footer className="site-footer">
         <div className={wide ? "wrap wide" : "wrap"}>
-          <span>Lehwi Palance · Trinidad &amp; Tobago</span>
+          <span>Good vibes. Real tickets. Lehwi Palance.</span>
           <Link href="/promoter">For promoters</Link>
         </div>
       </footer>
