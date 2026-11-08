@@ -47,7 +47,7 @@ from app.schemas.promoter import (
     TierIn,
     TierPatch,
 )
-from app.services import countries, orders
+from app.services import countries, listings, orders
 from app.services.codes import seller_code, slugify, with_suffix
 
 router = APIRouter(prefix="/v1/orgs", tags=["promoter"])
@@ -331,6 +331,8 @@ def create_tier(
 ) -> Event:
     event = _editable_event(db, org_id, event_id)
     db.add(TicketTier(**body.model_dump(), event_id=event.id))
+    db.flush()
+    listings.refresh_price_range(db, event.id)
     db.commit()
     db.refresh(event, ["tiers"])
     return event
@@ -364,6 +366,8 @@ def update_tier(
         raise _invalid("sales_end_at must be after sales_start_at")
     for key, value in changes.items():
         setattr(tier, key, value)
+    db.flush()
+    listings.refresh_price_range(db, event.id)
     db.commit()
     db.refresh(event, ["tiers"])
     return event
@@ -382,6 +386,8 @@ def delete_tier(
         raise _conflict("This tier has orders; set its quantity or sales window instead")
     event.tiers.remove(tier)
     db.delete(tier)
+    db.flush()
+    listings.refresh_price_range(db, event.id)
     db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 

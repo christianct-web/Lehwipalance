@@ -3,17 +3,18 @@ import uuid
 from datetime import datetime
 
 from sqlalchemy import (
-    JSON,
     CheckConstraint,
     DateTime,
     Enum,
     Float,
     ForeignKey,
     Index,
+    Integer,
     String,
     Text,
 )
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.ext.associationproxy import AssociationProxy, association_proxy
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base, IdMixin, TimestampMixin
 
@@ -67,6 +68,7 @@ class Listing(IdMixin, TimestampMixin, Base):
         # in date order.
         Index("ix_listings_discovery", "type", "status", "starts_at"),
         Index("ix_listings_country_city", "country_code", "city"),
+        Index("ix_listings_price_min", "price_min_minor"),
     )
 
     organisation_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("organisations.id"), index=True)
@@ -98,7 +100,46 @@ class Listing(IdMixin, TimestampMixin, Base):
     )
     ends_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
-    # The concept's "keyword interests": free tags a filter profile can match.
-    tags: Mapped[list[str]] = mapped_column(JSON, default=list)
+    # What this listing costs, rolled up from its own sellable inventory so
+    # discovery can filter and sort on price without knowing how each category
+    # stores it. Null when nothing is priced yet; a zero minimum means free.
+    # Maintained by app.services.listings.refresh_price_range.
+    price_min_minor: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    price_max_minor: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
+    tag_rows: Mapped[list["ListingTag"]] = relationship(
+        back_populates="listing", cascade="all, delete-orphan", lazy="selectin"
+    )
+    # The concept's "keyword interests". Read and write them as plain strings:
+    #     listing.tags = ["soca", "all-inclusive"]
+    tags: AssociationProxy[list[str]] = association_proxy(
+        "tag_rows", "tag", creator=lambda tag: ListingTag(tag=tag)
+    )
 
     __mapper_args__ = {"polymorphic_on": type}
+
+
+class ListingTag(Base):
+    """One keyword on one listing.
+
+    A table rather than a JSON column on `listings`: tags are a first-class
+    filter in the concept's filter profiles, and this shape is indexable and
+    behaves identically on Postgres and on SQLite. JSON containment would mean
+    `JSONB`, which the test database cannot run.
+
+    Tags are stored already normalised — lowercased and trimmed — so a match is
+    a plain equality test.
+    """
+
+    __tablename__ = "listing_tags"
+
+    listing_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("listings.id", ondelete="CASCADE"), primary_key=True
+    )
+    tag: Mapped[str] = mapped_column(String(60), primary_key=True, index=True)
+
+    listing: Mapped[Listing] = relationship(back_populates="tag_rows")
+
+    @staticmethod
+    def normalise(tag: str) -> str:
+        return " ".join(tag.lower().split())

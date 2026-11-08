@@ -76,8 +76,18 @@ type beside `Booking`.
 Everything here is shared machinery all five categories need, so it comes before
 any new category.
 
-- [ ] Real filters on listings: type, country, city, radius, date, price,
-      rating, tags; the central calendar; map-bounds queries
+- [x] **Real filters on listings** (2026-11-08): category, country, city, free
+      text, tags, date window, price window, free-only, map viewport or radius,
+      four sort orders, paging with a total. `GET /v1/listings`
+- [x] **The central calendar** (2026-11-08): counts per day, grouped in the
+      market's local timezone. `GET /v1/listings/calendar`
+- [x] **Price rollup** on listings (migration 0007) so price filtering works
+      across categories; tags moved to their own indexable table
+- [ ] Rating filter — needs the review rollups, so it lands with reviews below
+- [ ] Full-text search; the current filter is `LIKE` over title, description
+      and venue
+- [ ] True distance ordering (needs PostGIS, which Supabase would bring); the
+      radius filter is a bounding-box approximation today
 - [ ] Filter profiles per country or city, and the "For You" feed. The shape is
       already defined in the Flutter app's `MerchantListingFilter`
 - [ ] Followings (organisations) and saved favourites (listings)

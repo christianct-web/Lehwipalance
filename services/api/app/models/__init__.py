@@ -2,7 +2,7 @@
 
 from app.models.country import Country
 from app.models.event import Event, EventCategory, Seller, TicketTier
-from app.models.listing import Listing, ListingStatus, ListingType
+from app.models.listing import Listing, ListingStatus, ListingTag, ListingType
 from app.models.order import (
     Order,
     OrderItem,
@@ -20,6 +20,7 @@ __all__ = [
     "EventCategory",
     "Listing",
     "ListingStatus",
+    "ListingTag",
     "ListingType",
     "MemberRole",
     "Order",

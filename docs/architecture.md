@@ -32,6 +32,7 @@
 | `users` | Everyone: fete-goers, promoter staff, sellers, scanners |
 | `organisations`, `org_members` | Promoters and who can act for them |
 | `listings` | Anything published, of any category; `draft` → `published` → (`cancelled`) |
+| `listing_tags` | Keywords on a listing; what a filter profile's interests match |
 | `event_details` | The event category of a listing whose `type` is `event` |
 | `ticket_tiers` | Early bird, Tier 1, VIP; price in minor units, inventory, sales window |
 | `sellers` | Committee members with a personal code for attributed sales |
@@ -56,9 +57,40 @@ subclass and its detail table, not touching the base.
   `listings` — a tighter constraint, since all three can only belong to an event.
 - The event row lock is taken on the `listings` row, the one every category
   shares. See `lock_event` in `app/services/orders.py`.
+- `price_min_minor`/`price_max_minor` are a rollup of the listing's own
+  sellable inventory, so discovery can filter and sort on price without knowing
+  how each category stores it. For an event it is the span of its tiers — all of
+  them, not just the ones on sale, so a sales window opening or closing never
+  needs a background job to keep discovery honest. Maintained by
+  `app/services/listings.py:refresh_price_range`, called from all three tier
+  mutations.
+- Tags are a table, not a JSON column: they are a first-class filter, and this
+  shape is indexable and identical on Postgres and on the SQLite test database,
+  where JSON containment would need `JSONB`. Stored already normalised —
+  lowercased, whitespace-collapsed — so matching is plain equality.
 - Still to come (Phase C, when accommodation lands): an `Offer` base over ticket
   tiers, rate plans and tour departures, at which point `orders.event_id`
   becomes `listing_id` and `Ticket` becomes one fulfilment type beside `Booking`.
+
+### Discovery
+
+`app/services/listings.py` holds one query builder for the whole filter set in
+`docs/original-concept.md`, so search, the map, the central calendar and a
+filter profile's "For You" feed are the same question with different arguments
+rather than four code paths. Only published listings in a live market are ever
+returned, and categories a market has switched off are filtered out rather than
+erroring.
+
+- Dates are grouped in the market's own timezone. "What's on Saturday" is a
+  local question: a fete starting at 00:30 UTC on Sunday is Saturday night in
+  Trinidad, and the calendar has to agree with the person holding the ticket.
+- Location filtering is a bounding box — a map viewport (`bbox`) directly, or a
+  square around a point (`near` + `radius_km`). It over-selects at the corners
+  on purpose: it is what a plain B-tree index can answer on both backends. True
+  distance ordering wants PostGIS, which the Supabase cutover would bring.
+- Free text search is `LIKE` over title, description and venue. Honest for one
+  island's catalogue, and it cannot use an index — full-text search is a real
+  later problem, not a forgotten one.
 
 ### Markets
 
@@ -111,6 +143,8 @@ Logic lives in `app/services/orders.py`; the payment boundary is
 | GET | `/health` | DB round-trip |
 | POST | `/v1/auth/register`, `/v1/auth/login` | Returns a bearer token (rate-limited) |
 | GET | `/v1/auth/me` | Current user |
+| GET | `/v1/listings` | Discovery across every category: `type`, `country`, `city`, `q`, `tag`, date window, price window, `free`, `bbox` or `near`+`radius_km`, `sort`, paging |
+| GET | `/v1/listings/calendar` | Counts per local day for the central calendar |
 | GET | `/v1/events`, `/v1/events/{slug}` | Published events and tiers |
 | GET | `/v1/fees/quote` | Fee breakdown for a face value; `country` picks the market |
 | GET | `/v1/config` | Payment provider and `online_payments`: `live`, `test` or `off` |
