@@ -23,6 +23,8 @@ class EventSummaryOut(BaseModel):
     title: str
     category: str
     venue_name: str | None
+    city: str | None
+    country_code: str
     starts_at: datetime
     cover_image_url: str | None
 
@@ -37,6 +39,7 @@ class EventDetailOut(EventSummaryOut):
 
 
 class FeeQuoteOut(BaseModel):
+    currency: str
     face_value_minor: int
     quantity: int
     subtotal_minor: int

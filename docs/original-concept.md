@@ -1,4 +1,19 @@
-login customers can create filter profiles per country or city
+<!--
+The client's original product vision. **As of 2026-11-08 this is the governing
+scope**: the full five-category concept is being built, in Trinidad & Tobago
+only, for a 2028 launch. See PRODUCT.md and docs/roadmap.md for how it is
+sequenced and what is blocked.
+
+Two corrections to the text below, both recorded in PRODUCT.md:
+- The name is **Lehwi Palance**, not "Lewi Palance".
+- The 2% + US$0.50 ticket fee conflicts with the implemented rates and looks
+  loss-making against WiPay's cost. Unresolved; see docs/market-and-economics.md.
+
+Kept verbatim otherwise. The one line removed was a stray note at the top of
+the file ("login customers can create filter profiles per country or city"),
+which the Filter Profiles section already states in full.
+-->
+
 Lewi Palance — Caribbean-Ready Event & Experience App
 Discover. Connect. Experience the Caribbean.
 

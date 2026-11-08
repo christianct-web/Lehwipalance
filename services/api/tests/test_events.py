@@ -1,6 +1,6 @@
 from datetime import UTC, datetime, timedelta
 
-from app.models import Event, EventStatus, Organisation, TicketTier
+from app.models import Event, ListingStatus, Organisation, TicketTier
 
 
 def _seed(db):
@@ -11,7 +11,7 @@ def _seed(db):
         organisation_id=org.id,
         title="Sunrise Cooler Fete",
         slug="sunrise-cooler-fete",
-        status=EventStatus.published,
+        status=ListingStatus.published,
         starts_at=datetime.now(UTC) + timedelta(days=30),
         venue_name="Queen's Park Savannah",
     )
@@ -19,7 +19,7 @@ def _seed(db):
         organisation_id=org.id,
         title="Secret Draft",
         slug="secret-draft",
-        status=EventStatus.draft,
+        status=ListingStatus.draft,
         starts_at=datetime.now(UTC) + timedelta(days=40),
     )
     db.add_all([upcoming, draft])

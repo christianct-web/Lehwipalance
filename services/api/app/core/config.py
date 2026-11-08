@@ -15,6 +15,10 @@ class Settings(BaseSettings):
     jwt_expires_minutes: int = 60
     cors_origins: str = "http://localhost:5173"
 
+    # The market a request falls back to when it names no country. Only
+    # Trinidad & Tobago is live; see the `countries` table.
+    default_country: str = "TT"
+
     # Where the web app lives, e.g. https://lehwipalance.com. Used to build the
     # links in ticket emails and the test checkout page.
     public_base_url: str = "http://localhost:5173"

@@ -28,13 +28,46 @@
 
 | Table | Purpose |
 | --- | --- |
+| `countries` | A market: currency, timezone, fee rates, which categories it shows, the delivery gate. T&T only |
 | `users` | Everyone: fete-goers, promoter staff, sellers, scanners |
 | `organisations`, `org_members` | Promoters and who can act for them |
-| `events` | A fete or event; `draft` → `published` → (`cancelled`) |
+| `listings` | Anything published, of any category; `draft` → `published` → (`cancelled`) |
+| `event_details` | The event category of a listing whose `type` is `event` |
 | `ticket_tiers` | Early bird, Tier 1, VIP; price in minor units, inventory, sales window |
 | `sellers` | Committee members with a personal code for attributed sales |
 | `orders`, `order_items` | A purchase; channel `online`, `seller_cash` or `box_office` |
 | `tickets` | One admission; random `code` encoded in the QR; check-in state |
+
+### Listings (joined-table inheritance)
+
+Discovery, the map, search, filter profiles, follows, favourites, reviews, the
+media feed and collaborators all have to work across the five categories in
+`docs/original-concept.md`. Rather than a union over five sibling tables,
+everything discovery touches lives on one indexed `listings` base — organisation,
+`type`, title, globally unique slug, status, country, city, venue, location,
+cover, `starts_at`/`ends_at`, tags — with a detail table per category keyed by
+the same id. `event_details` is the first; adding a category means adding a
+subclass and its detail table, not touching the base.
+
+- `starts_at` is nullable on the base, because accommodation has no single start
+  (availability will live in its rate plans). The invariant events need is kept
+  by a check constraint: `type <> 'event' OR starts_at IS NOT NULL`.
+- `ticket_tiers`, `sellers` and `orders` point at `event_details`, not
+  `listings` — a tighter constraint, since all three can only belong to an event.
+- The event row lock is taken on the `listings` row, the one every category
+  shares. See `lock_event` in `app/services/orders.py`.
+- Still to come (Phase C, when accommodation lands): an `Offer` base over ticket
+  tiers, rate plans and tour departures, at which point `orders.event_id`
+  becomes `listing_id` and `Ticket` becomes one fulfilment type beside `Booking`.
+
+### Markets
+
+A listing names a country, and that row — not a constant — decides the currency
+a sale is priced in, the fee rates charged on it, and whether the category is on
+offer there. Resolved by `app/services/countries.py`; the Trinidad & Tobago
+values in `app/services/fees.py` are the seeded defaults and the fallback where
+no row is in reach. One order is one market and one currency, so there is no FX
+in the ledger.
 
 ## Orders and payments
 
@@ -79,7 +112,7 @@ Logic lives in `app/services/orders.py`; the payment boundary is
 | POST | `/v1/auth/register`, `/v1/auth/login` | Returns a bearer token (rate-limited) |
 | GET | `/v1/auth/me` | Current user |
 | GET | `/v1/events`, `/v1/events/{slug}` | Published events and tiers |
-| GET | `/v1/fees/quote` | Fee breakdown for a face value |
+| GET | `/v1/fees/quote` | Fee breakdown for a face value; `country` picks the market |
 | GET | `/v1/config` | Payment provider and `online_payments`: `live`, `test` or `off` |
 | POST | `/v1/orders` | Guest checkout; returns the order and `checkout_url` (rate-limited) |
 | GET | `/v1/orders/{id}?token=` | Order status and tickets |
@@ -121,6 +154,7 @@ to members whose role is too low.
 - Once a tier has sales, its price is fixed (add a new tier instead), its
   quantity can't drop below what's sold, and it can't be deleted.
 - A seller with attributed orders can't be deleted, so the sales report stays whole.
-- Tiers are TTD for now; the request body doesn't take a currency.
+- A tier's currency comes from its listing's market, so the request body
+  doesn't take one. Every listing is `TT` until a promoter can choose.
 
 Interactive docs at `/docs` when the API is running in development (off in production).

@@ -18,7 +18,7 @@ from app.api.deps import AnyMember, DbSession, OrgAdmin, OrgScanner
 from app.core.config import get_settings
 from app.models import (
     Event,
-    EventStatus,
+    ListingStatus,
     MemberRole,
     Order,
     OrderItem,
@@ -354,7 +354,7 @@ def upload_cover(
     file: Annotated[UploadFile, File()],
 ) -> Event:
     event = _event(db, org_id, event_id)
-    if event.status == EventStatus.cancelled:
+    if event.status == ListingStatus.cancelled:
         raise HTTPException(status.HTTP_409_CONFLICT, "This event is cancelled")
     limit = get_settings().max_upload_bytes
     data = file.file.read(limit + 1)

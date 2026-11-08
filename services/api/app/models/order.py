@@ -32,7 +32,7 @@ class Order(IdMixin, TimestampMixin, Base):
     __tablename__ = "orders"
 
     buyer_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"), nullable=True)
-    event_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("events.id"), index=True)
+    event_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("event_details.id"), index=True)
     seller_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("sellers.id"), nullable=True)
     status: Mapped[OrderStatus] = mapped_column(
         Enum(OrderStatus, native_enum=False), default=OrderStatus.pending, index=True

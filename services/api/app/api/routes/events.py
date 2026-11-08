@@ -5,9 +5,9 @@ from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
 from app.api.deps import DbSession
-from app.models import Event, EventStatus
+from app.models import Event, ListingStatus
 from app.schemas.events import EventDetailOut, EventSummaryOut, FeeQuoteOut, TierOut
-from app.services import fees, orders
+from app.services import countries, fees, orders
 
 router = APIRouter(prefix="/v1", tags=["events"])
 
@@ -19,7 +19,7 @@ def list_events(
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
 ) -> list[Event]:
-    stmt = select(Event).where(Event.status == EventStatus.published)
+    stmt = select(Event).where(Event.status == ListingStatus.published)
     if upcoming_only:
         stmt = stmt.where(Event.starts_at >= datetime.now(UTC))
     stmt = stmt.order_by(Event.starts_at).limit(limit).offset(offset)
@@ -30,7 +30,7 @@ def list_events(
 def get_event(slug: str, db: DbSession) -> EventDetailOut:
     event = db.scalar(
         select(Event)
-        .where(Event.slug == slug, Event.status == EventStatus.published)
+        .where(Event.slug == slug, Event.status == ListingStatus.published)
         .options(selectinload(Event.tiers))
     )
     if event is None:
@@ -54,6 +54,11 @@ def get_event(slug: str, db: DbSession) -> EventDetailOut:
 
 @router.get("/fees/quote", response_model=FeeQuoteOut)
 def fee_quote(
-    face_value_minor: int = Query(ge=0), quantity: int = Query(1, ge=1, le=50)
+    db: DbSession,
+    face_value_minor: int = Query(ge=0),
+    quantity: int = Query(1, ge=1, le=50),
+    country: str | None = Query(None, min_length=2, max_length=2),
 ) -> fees.FeeQuote:
-    return fees.quote(face_value_minor, quantity)
+    """What a ticket at this face value costs the buyer and pays the promoter.
+    Rates come from the market; `country` defaults to the configured one."""
+    return fees.quote(face_value_minor, quantity, countries.fee_config(db, country))

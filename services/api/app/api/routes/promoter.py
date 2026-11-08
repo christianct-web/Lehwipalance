@@ -19,7 +19,8 @@ from app.api.deps import AnyMember, CurrentUser, DbSession, OrgAdmin
 from app.core.time import aware as _aware
 from app.models import (
     Event,
-    EventStatus,
+    Listing,
+    ListingStatus,
     MemberRole,
     Order,
     OrderItem,
@@ -46,7 +47,7 @@ from app.schemas.promoter import (
     TierIn,
     TierPatch,
 )
-from app.services import orders
+from app.services import countries, orders
 from app.services.codes import seller_code, slugify, with_suffix
 
 router = APIRouter(prefix="/v1/orgs", tags=["promoter"])
@@ -211,7 +212,7 @@ def _get_event(db: Session, org_id: UUID, event_id: UUID, lock: bool = False) ->
 
 def _editable_event(db: Session, org_id: UUID, event_id: UUID) -> Event:
     event = _get_event(db, org_id, event_id, lock=True)
-    if event.status == EventStatus.cancelled:
+    if event.status == ListingStatus.cancelled:
         raise _conflict("This event is cancelled")
     return event
 
@@ -221,7 +222,7 @@ def list_org_events(
     org_id: UUID,
     member: AnyMember,
     db: DbSession,
-    status_: Annotated[EventStatus | None, Query(alias="status")] = None,
+    status_: Annotated[ListingStatus | None, Query(alias="status")] = None,
 ) -> list[Event]:
     stmt = select(Event).where(Event.organisation_id == org_id)
     if status_ is not None:
@@ -238,8 +239,12 @@ def create_event(org_id: UUID, body: EventIn, member: OrgAdmin, db: DbSession) -
     event = Event(
         **body.model_dump(),
         organisation_id=org_id,
-        status=EventStatus.draft,
-        slug=_unique_slug(db, Event.slug, body.title, 160),
+        status=ListingStatus.draft,
+        # One market for now. When promoters can pick, this becomes a field on
+        # EventIn validated against the live countries.
+        country_code=countries.default_code(),
+        # Slugs are unique across every category, so the check is on Listing.
+        slug=_unique_slug(db, Listing.slug, body.title, 160),
     )
     db.add(event)
     db.commit()
@@ -270,13 +275,13 @@ def update_event(
 @router.post("/{org_id}/events/{event_id}/publish", response_model=PromoterEventOut)
 def publish_event(org_id: UUID, event_id: UUID, member: OrgAdmin, db: DbSession) -> Event:
     event = _editable_event(db, org_id, event_id)
-    if event.status == EventStatus.published:
+    if event.status == ListingStatus.published:
         return event
     if not event.tiers:
         raise _conflict("Add at least one ticket tier before publishing")
     if _aware(event.starts_at) <= datetime.now(UTC):
         raise _conflict("The event has already started")
-    event.status = EventStatus.published
+    event.status = ListingStatus.published
     db.commit()
     return event
 
@@ -284,7 +289,7 @@ def publish_event(org_id: UUID, event_id: UUID, member: OrgAdmin, db: DbSession)
 @router.post("/{org_id}/events/{event_id}/cancel", response_model=PromoterEventOut)
 def cancel_event(org_id: UUID, event_id: UUID, member: OrgAdmin, db: DbSession) -> Event:
     event = _get_event(db, org_id, event_id, lock=True)
-    if event.status == EventStatus.cancelled:
+    if event.status == ListingStatus.cancelled:
         return event
     paid = db.scalar(
         select(
@@ -298,7 +303,7 @@ def cancel_event(org_id: UUID, event_id: UUID, member: OrgAdmin, db: DbSession) 
     if paid:
         # Cancelling with paid orders means refunding them; that flow isn't built yet.
         raise _conflict("This event has paid orders; refunds must be handled first")
-    event.status = EventStatus.cancelled
+    event.status = ListingStatus.cancelled
     # Still under the event lock: close open checkouts so a late payment can't
     # issue tickets (settlement takes the same lock and sees the cancellation).
     orders.cancel_open_orders(db, event.id)

@@ -40,11 +40,13 @@ export default function EventPage({ slug }: { slug: string }) {
         setQuote(
           qs.reduce(
             (a, q) => ({
+              currency: q.currency,
               subtotal_minor: a.subtotal_minor + q.subtotal_minor,
               buyer_fee_minor: a.buyer_fee_minor + q.buyer_fee_minor,
               total_minor: a.total_minor + q.total_minor,
             }),
-            { subtotal_minor: 0, buyer_fee_minor: 0, total_minor: 0 },
+            // One event, one market, so every line quotes the same currency.
+            { currency: qs[0].currency, subtotal_minor: 0, buyer_fee_minor: 0, total_minor: 0 },
           ),
         );
       })
