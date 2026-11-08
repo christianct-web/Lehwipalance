@@ -168,7 +168,7 @@ any new category.
 - [ ] `is_test` propagated to bookings and store orders, refused at every point
       of fulfilment
 - [ ] Review moderation: reporting, hiding, and the admin tooling behind it
-- [ ] A committed demo seed script. The 8 placeholder listings were made ad hoc
-      and `switch-to-supabase.sh` does not copy rows, so the cutover empties
-      the UI
+- [x] **A committed demo seed script** (2026-11-08):
+      `app/scripts/seed_demo.py`, idempotent, with `--reset` that removes only
+      what it owns. Run it after the Supabase cutover, which does not copy rows
 - [ ] Store listings, screenshots, review notes
