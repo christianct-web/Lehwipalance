@@ -36,6 +36,7 @@
 | `filter_profiles` | A customer's saved discovery preferences, one per country or city |
 | `follows`, `favourites` | Organisations someone follows; listings they saved |
 | `reviews`, `review_section_ratings` | A verdict on a listing, overall and per section |
+| `listing_collaborators` | Organisations credited on a listing they do not own |
 | `event_details` | The event category of a listing whose `type` is `event` |
 | `ticket_tiers` | Early bird, Tier 1, VIP; price in minor units, inventory, sales window |
 | `sellers` | Committee members with a personal code for attributed sales |
@@ -162,6 +163,32 @@ say which reviewers actually turned up — proof a competitor cannot fabricate.
   admin tooling behind it. That is a launch blocker for a public review system,
   not an optional extra.
 
+### Collaborators and organisation profiles
+
+The concept makes a collaborator an organisation, not an individual vendor, so
+this reuses `organisations` rather than inventing a parallel kind of party. A
+listing has one owner — the organisation that created it and gets paid — and any
+number of credited collaborators, which gives an organisation page the concept's
+two groups: owned listings, and shared listings or collabs.
+
+- `credit` is how the collaboration reads on the listing ("co-promoter", "sound
+  by", "hosted by"), because "collaborator" alone says nothing about what
+  someone did.
+- Only the owning organisation's admins can credit or remove collaborators, and
+  a listing's owner cannot be one of its own collaborators.
+- Organisation search lists only organisations with something published, **or
+  credited on something published**. That is what makes a sound crew with no
+  listings of its own discoverable, which is the concept's requirement that
+  collaborators are searchable alongside other organisations.
+- A profile deliberately omits `contact_email`, `contact_phone` and
+  `payout_reference`. Those are the promoter's own, collected for payouts and
+  ticket admin; publishing them is a decision nobody has made. The vendor
+  directory's "contact and booking flow" will need that decision taken.
+- **Open question: consent.** Crediting takes effect without the other
+  organisation agreeing, which is how the concept describes it — but a
+  collaboration appears on their public profile, so an invite-and-accept step
+  is worth deciding before launch.
+
 ### Markets
 
 A listing names a country, and that row — not a constant — decides the currency
@@ -226,6 +253,11 @@ Logic lives in `app/services/orders.py`; the payment boundary is
 | GET | `/v1/me/favourites` | Listings I saved, newest first; keeps cancelled ones |
 | PUT, DELETE | `/v1/me/favourites/{listing_id}` | Save or unsave a published listing |
 | GET | `/v1/organisations/{slug}/followers` | Public follower count |
+| GET | `/v1/organisations` | Search organisations with something published or credited |
+| GET | `/v1/organisations/{slug}` | Public profile: followers, owned listings, collaborations |
+| GET | `/v1/listings/{slug}/collaborators` | Who is credited on a listing |
+| GET, PUT | `/v1/orgs/{org_id}/listings/{listing_id}/collaborators` | Manage credits (owner's admins) |
+| DELETE | `/v1/orgs/{org_id}/listings/{listing_id}/collaborators/{id}` | Remove a credit |
 | GET, POST | `/v1/listings/{slug}/reviews` | Reviews and their summary; write one (needs a token) |
 | PATCH, DELETE | `/v1/reviews/{id}` | Change or remove my own review |
 | GET | `/v1/events`, `/v1/events/{slug}` | Published events and tiers |

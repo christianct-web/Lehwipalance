@@ -1,5 +1,6 @@
 """Import every model here so Alembic autogenerate sees the full schema."""
 
+from app.models.collaborator import ListingCollaborator
 from app.models.country import Country
 from app.models.event import Event, EventCategory, Seller, TicketTier
 from app.models.filter_profile import DatePreference, FilterProfile, PriceBand
@@ -26,6 +27,7 @@ __all__ = [
     "FilterProfile",
     "Follow",
     "Listing",
+    "ListingCollaborator",
     "ListingStatus",
     "ListingTag",
     "ListingType",

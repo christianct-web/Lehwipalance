@@ -96,8 +96,14 @@ any new category.
 - [x] **Followings and favourites** (2026-11-08): follow an organisation,
       save a listing, and a feed of what followed organisations have on.
       Migration 0009
-- [ ] Collaborators: organisations attached to a listing, with the Owned vs
-      Collabs split on the organisation page
+- [x] **Collaborators and public organisation profiles** (2026-11-08):
+      credits on a listing, the Owned vs Collabs split, and organisation search
+      that includes organisations discoverable only by being credited.
+      Migration 0011
+- [ ] Collaborator **consent**: crediting currently needs no agreement from the
+      organisation being credited, though it shows on their public profile
+- [ ] Whether an organisation profile publishes contact details, which the
+      vendor directory's booking flow will need decided
 - [x] **Reviews with section ratings and the verified-attendee badge**
       (2026-11-08): proved from a real, checked-in, non-simulated ticket and
       settled once at write time. Rating rollup on listings. Migration 0010

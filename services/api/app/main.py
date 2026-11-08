@@ -10,6 +10,7 @@ from app.api.routes import (
     health,
     listings,
     orders,
+    organisations,
     promoter,
     reviews,
     sales,
@@ -50,6 +51,9 @@ def create_app() -> FastAPI:
     app.include_router(social.router)
     app.include_router(social.public)
     app.include_router(reviews.router)
+    app.include_router(organisations.public)
+    app.include_router(organisations.listing_public)
+    app.include_router(organisations.manage)
     app.include_router(orders.router)
     app.include_router(promoter.router)
     app.include_router(sales.router)
