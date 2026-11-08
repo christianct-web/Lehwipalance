@@ -23,6 +23,7 @@ from app.models import (
     ListingTag,
     ListingType,
     PriceModel,
+    RoomType,
     ServiceListing,
     TicketTier,
 )
@@ -249,6 +250,14 @@ def refresh_price_range(db: Session, listing_id: UUID) -> None:
         lo, hi = db.execute(
             select(func.min(TicketTier.price_minor), func.max(TicketTier.price_minor)).where(
                 TicketTier.listing_id == listing_id
+            )
+        ).one()
+    elif listing.type == ListingType.accommodation:
+        # The span of its nightly rates. "From TT$450 a night" is what a
+        # discovery card shows.
+        lo, hi = db.execute(
+            select(func.min(RoomType.price_minor), func.max(RoomType.price_minor)).where(
+                RoomType.listing_id == listing_id
             )
         ).one()
     elif listing.type == ListingType.service:

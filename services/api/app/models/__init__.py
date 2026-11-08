@@ -1,5 +1,7 @@
 """Import every model here so Alembic autogenerate sees the full schema."""
 
+from app.models.accommodation import AccommodationListing, PropertyType, RoomType
+from app.models.booking import Booking, BookingStatus
 from app.models.collaborator import ListingCollaborator
 from app.models.country import Country
 from app.models.event import Event, EventCategory, Seller, TicketTier
@@ -22,6 +24,9 @@ from app.models.social import Favourite, Follow
 from app.models.user import User
 
 __all__ = [
+    "AccommodationListing",
+    "Booking",
+    "BookingStatus",
     "Country",
     "DatePreference",
     "Event",
@@ -45,9 +50,11 @@ __all__ = [
     "OrgMember",
     "PriceBand",
     "PriceModel",
+    "PropertyType",
     "Review",
     "ReviewSection",
     "ReviewSectionRating",
+    "RoomType",
     "Organisation",
     "SalesChannel",
     "ServiceCategory",

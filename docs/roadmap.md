@@ -65,11 +65,10 @@ rather than by migration cost.
 - [x] Verified: 61 tests, lint, `alembic check` clean, data migration and
       downgrade round-trip checked on Postgres, live stack re-deployed
 
-Deferred out of Phase A on purpose: the `Offer`/booking generalisation (A3).
-`orders.py`'s inventory engine gets generalised when accommodation lands and
-there is a second real shape to generalise against — not speculatively. At that
-point `orders.event_id` becomes `listing_id` and `Ticket` becomes one fulfilment
-type beside `Booking`.
+The `Offer`/booking generalisation (A3) was deferred out of Phase A on purpose
+and **landed with accommodation on 2026-11-08** (migration 0013), once there was
+a second real shape to generalise against. `orders.event_id` became
+`listing_id`, and `Booking` now sits beside `Ticket`.
 
 ## Phase B: discovery and the social layer
 
@@ -120,8 +119,17 @@ any new category.
       quote-only, and a generic `GET /v1/listings/{slug}` carrying each
       category's own fields. Migration 0012
 - [ ] A full inquiry thread, if one reply each way turns out not to be enough
-- [ ] **Accommodation** — rooms and date-range availability. Hardest inventory
-      model; this is what triggers the A3 generalisation
+- [x] **Accommodation** (2026-11-08) — properties, room types, per-night
+      availability, and stays with guest checkout, holds and settlement.
+      Migrations 0013 (the `Offer` base) and 0014
+- [ ] **Confirm the booking fee**: the fixed part of the buyer fee is charged
+      once per booking, not per night. The fee model was written per ticket, so
+      this is a commercial decision, not an implementation detail
+- [ ] **One payment callback that dispatches on listing type.** Stays currently
+      settle through their own endpoint so the revenue-critical ticket path was
+      not disturbed; the real WiPay callback is a single URL and must dispatch
+- [ ] Gate-equivalent for stays: check-in and check-out on arrival, and a
+      no-show policy
 - [ ] **Vacation** — tours and departure slots with capacity. Reuses much of
       the ticket-tier shape
 - [ ] **Stores** — catalogue, variants, stock, cart. Country-gated
