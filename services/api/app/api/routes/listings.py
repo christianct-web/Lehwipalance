@@ -138,7 +138,7 @@ def list_listings(
         limit=limit,
         offset=offset,
     )
-    f.types = _enabled_types(db, f)
+    f.types = enabled_types(db, f)
     if not f.types:
         return ListingPageOut(total=0, limit=limit, offset=offset, results=[])
     return ListingPageOut(
@@ -152,7 +152,7 @@ def list_listings(
     )
 
 
-def _enabled_types(db, f: listings.Filters) -> list[ListingType]:
+def enabled_types(db, f: listings.Filters) -> list[ListingType]:
     """Narrow the requested categories to the ones this market actually shows.
 
     A market with stores switched off must not leak store listings, and asking
@@ -218,7 +218,7 @@ def listings_calendar(
         limit=listings.MAX_LIMIT,
         offset=0,
     )
-    f.types = _enabled_types(db, f)
+    f.types = enabled_types(db, f)
     tally = listings.calendar(db, f, start, end) if f.types else {}
     return CalendarOut(
         country_code=code,

@@ -88,6 +88,7 @@ class Filters:
     price_min_minor: int | None = None
     price_max_minor: int | None = None
     free_only: bool = False
+    paid_only: bool = False
     bounds: Bounds | None = None
     organisation_id: UUID | None = None
     sort: str = Sort.date
@@ -136,10 +137,15 @@ def _apply(stmt: Select, f: Filters) -> Select:
         stmt = stmt.where(Listing.starts_at >= f.starts_after)
     if f.starts_before:
         stmt = stmt.where(Listing.starts_at <= f.starts_before)
+    # Price. A listing matches a window when its own range overlaps it, and a
+    # listing with nothing priced yet matches no price filter at all.
     if f.free_only:
         stmt = stmt.where(Listing.price_min_minor == 0)
+    elif f.paid_only:
+        # Something in it costs money. A listing with both a free RSVP tier and
+        # a paid tier counts: there is something to buy.
+        stmt = stmt.where(Listing.price_max_minor > 0)
     else:
-        # A listing with nothing priced yet is not a match for a price filter.
         if f.price_min_minor is not None:
             stmt = stmt.where(Listing.price_max_minor >= f.price_min_minor)
         if f.price_max_minor is not None:

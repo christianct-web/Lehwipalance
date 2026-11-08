@@ -33,6 +33,7 @@
 | `organisations`, `org_members` | Promoters and who can act for them |
 | `listings` | Anything published, of any category; `draft` → `published` → (`cancelled`) |
 | `listing_tags` | Keywords on a listing; what a filter profile's interests match |
+| `filter_profiles` | A customer's saved discovery preferences, one per country or city |
 | `event_details` | The event category of a listing whose `type` is `event` |
 | `ticket_tiers` | Early bird, Tier 1, VIP; price in minor units, inventory, sales window |
 | `sellers` | Committee members with a personal code for attributed sales |
@@ -92,6 +93,30 @@ erroring.
   island's catalogue, and it cannot use an index — full-text search is a real
   later problem, not a forgotten one.
 
+### Filter profiles
+
+A saved set of preferences, scoped to a market and optionally one city. Its
+columns mirror `listings.Filters`, so the "For You" feed is the ordinary
+discovery query with the profile's arguments rather than a second
+implementation that could drift from search.
+
+- `listing_types` and `tags` are JSON on a profile, unlike `listing_tags` on a
+  listing: they are read back whole to build a query, never themselves queried,
+  so there is nothing for an index to do. Profile tags are normalised the same
+  way listing tags are, or the two would never match.
+- The relative date preferences — upcoming, this weekend, this month — resolve
+  against the market's local clock on every read, so a profile saved in January
+  still means "this weekend" in March. The feed returns the window it resolved
+  to, so a client can label the results honestly. A fete weekend starts Friday
+  00:00 local: Friday night is the season's busiest slot, so a weekend that
+  excluded it would be right for a calendar and wrong for this product.
+- Exactly one profile per user is active. That is enforced in the service when
+  activating, not by a partial unique index, which would have to be spelled
+  differently for each backend. Deleting the active profile promotes another, so
+  a customer with profiles always has a feed.
+- Browsing without an account stays open (`/v1/listings`); the profile layer
+  needs a token, which is the concept's rule that Profile requires login.
+
 ### Markets
 
 A listing names a country, and that row — not a constant — decides the currency
@@ -145,6 +170,11 @@ Logic lives in `app/services/orders.py`; the payment boundary is
 | GET | `/v1/auth/me` | Current user |
 | GET | `/v1/listings` | Discovery across every category: `type`, `country`, `city`, `q`, `tag`, date window, price window, `free`, `bbox` or `near`+`radius_km`, `sort`, paging |
 | GET | `/v1/listings/calendar` | Counts per local day for the central calendar |
+| GET, POST | `/v1/me/filter-profiles` | My saved profiles; create one (the first is active) |
+| GET, PATCH, DELETE | `/v1/me/filter-profiles/{id}` | One profile |
+| POST | `/v1/me/filter-profiles/{id}/activate` | Switch the feed to this profile |
+| GET | `/v1/me/filter-profiles/{id}/feed` | Preview a profile without activating it |
+| GET | `/v1/me/feed` | The "For You" feed from the active profile; 404 when there is none |
 | GET | `/v1/events`, `/v1/events/{slug}` | Published events and tiers |
 | GET | `/v1/fees/quote` | Fee breakdown for a face value; `country` picks the market |
 | GET | `/v1/config` | Payment provider and `online_payments`: `live`, `test` or `off` |

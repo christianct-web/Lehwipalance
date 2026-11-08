@@ -88,8 +88,11 @@ any new category.
       and venue
 - [ ] True distance ordering (needs PostGIS, which Supabase would bring); the
       radius filter is a bounding-box approximation today
-- [ ] Filter profiles per country or city, and the "For You" feed. The shape is
-      already defined in the Flutter app's `MerchantListingFilter`
+- [x] **Filter profiles per country or city, and the "For You" feed**
+      (2026-11-08): create, edit, switch, delete; category interests, keyword
+      interests, price band (any/free/paid/custom) and date preference
+      (upcoming/this weekend/this month/custom), resolved against the market's
+      local clock on every read. Migration 0008
 - [ ] Followings (organisations) and saved favourites (listings)
 - [ ] Collaborators: organisations attached to a listing, with the Owned vs
       Collabs split on the organisation page

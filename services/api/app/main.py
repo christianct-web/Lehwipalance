@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.routes import (
     auth,
     events,
+    filter_profiles,
     health,
     listings,
     orders,
@@ -42,6 +43,8 @@ def create_app() -> FastAPI:
     app.include_router(auth.router)
     app.include_router(events.router)
     app.include_router(listings.router)
+    app.include_router(filter_profiles.router)
+    app.include_router(filter_profiles.feed_router)
     app.include_router(orders.router)
     app.include_router(promoter.router)
     app.include_router(sales.router)
