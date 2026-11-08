@@ -1,12 +1,12 @@
 import enum
 import uuid
-from datetime import datetime
 
-from sqlalchemy import DateTime, Enum, ForeignKey, Integer, String
+from sqlalchemy import Enum, ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base, IdMixin, TimestampMixin
 from app.models.listing import Listing, ListingType
+from app.models.offer import Offer, OfferType
 
 
 class EventCategory(enum.StrEnum):
@@ -37,35 +37,35 @@ class Event(Listing):
 
     __mapper_args__ = {"polymorphic_identity": ListingType.event}
 
+    # An offer's foreign key points at `listings`, which an event shares with
+    # every other category, so the join is spelled out rather than inferred.
     tiers: Mapped[list["TicketTier"]] = relationship(
-        back_populates="event", order_by="TicketTier.sort_order"
+        "TicketTier",
+        primaryjoin="TicketTier.listing_id == Event.id",
+        foreign_keys="TicketTier.listing_id",
+        order_by="TicketTier.sort_order",
+        cascade="all, delete-orphan",
     )
 
 
-class TicketTier(IdMixin, TimestampMixin, Base):
-    """Early bird, Tier 1, VIP... Money is stored in minor units (cents).
+class TicketTier(Offer):
+    """Early bird, Tier 1, VIP: a pool of admissions at one price.
 
-    Tiers are an event's sellable inventory. When accommodation arrives this
-    grows into a shared `Offer` base alongside rate plans and tour departures;
-    until there is a second real shape to generalise against, it stays as it is.
+    Its inventory is a single counter, which is what makes it different from a
+    room (counted per night) or a tour departure (counted per date). The shared
+    part — price, currency, sales window — lives on `Offer`.
     """
 
     __tablename__ = "ticket_tiers"
 
-    # To event_details rather than listings, so a tier can only ever hang off
-    # an event.
-    event_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("event_details.id"), index=True)
-    name: Mapped[str] = mapped_column(String(120))
-    price_minor: Mapped[int] = mapped_column(Integer)
-    currency: Mapped[str] = mapped_column(String(3), default="TTD")
+    id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("offers.id", ondelete="CASCADE"), primary_key=True
+    )
     quantity: Mapped[int] = mapped_column(Integer)
     quantity_sold: Mapped[int] = mapped_column(Integer, default=0)
     max_per_order: Mapped[int] = mapped_column(Integer, default=10)
-    sort_order: Mapped[int] = mapped_column(Integer, default=0)
-    sales_start_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    sales_end_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
-    event: Mapped[Event] = relationship(back_populates="tiers")
+    __mapper_args__ = {"polymorphic_identity": OfferType.ticket_tier}
 
     @property
     def remaining(self) -> int:

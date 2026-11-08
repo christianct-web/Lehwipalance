@@ -232,7 +232,7 @@ def test_upgrade_matches_the_app(pg):
         vip = db.get(TicketTier, ids["vip"])
         held = orders.held_quantities(db, [vip.id])
         assert orders.available(vip, held) == 4  # 5 - 1 real sale; test orders hold nothing
-        event = db.get(Event, vip.event_id)
+        event = db.get(Event, vip.listing_id)
         assert orders.check_in(db, event, _first_code(db, ids["sim_paid"]), None).result == (
             "test_ticket"
         )
@@ -242,3 +242,59 @@ def test_upgrade_matches_the_app(pg):
 
 def _first_code(db, order_id):
     return db.scalar(text("SELECT code FROM tickets WHERE order_id = :o LIMIT 1"), {"o": order_id})
+
+
+def test_offers_migration_preserves_tiers(pg):
+    """0013 lifts ticket tiers onto `offers` keeping their ids, so everything
+    that pointed at a tier still points at the right row.
+
+    Snapshotted at 0012, immediately before the move: earlier migrations
+    legitimately rewrite `quantity_sold` (0004 releases inventory taken by
+    simulated sales), and that is not what this test is about.
+    """
+    engine, cfg = pg
+    command.upgrade(cfg, "0002")
+    with engine.begin() as conn:
+        ids = _seed_0002(conn)
+
+    command.upgrade(cfg, "0012")
+    tier_columns = (
+        "SELECT id, event_id, name, price_minor, currency, sort_order, "
+        "quantity, quantity_sold, max_per_order FROM ticket_tiers ORDER BY name"
+    )
+    with engine.connect() as conn:
+        before = conn.execute(text(tier_columns)).all()
+        assert len(before) == 2
+
+    command.upgrade(cfg, "head")
+    with engine.connect() as conn:
+        after = conn.execute(
+            text(
+                "SELECT o.id, o.listing_id, o.name, o.price_minor, o.currency, o.sort_order, "
+                "t.quantity, t.quantity_sold, t.max_per_order "
+                "FROM offers o JOIN ticket_tiers t ON t.id = o.id ORDER BY o.name"
+            )
+        ).all()
+        assert after == before, "every tier column survived the move"
+        assert conn.scalar(text("SELECT bool_and(type = 'ticket_tier') FROM offers"))
+
+        # The renamed columns still point at the tiers they always did.
+        assert conn.scalar(
+            text("SELECT bool_and(oi.offer_id = ANY(:tiers)) FROM order_items oi"),
+            {"tiers": [ids["vip"], ids["rsvp"]]},
+        )
+        assert conn.scalar(
+            text("SELECT count(*) FROM tickets tk JOIN offers o ON o.id = tk.offer_id")
+        ) == conn.scalar(text("SELECT count(*) FROM tickets"))
+        # And an order now names the listing it was always for.
+        assert conn.scalar(
+            text(
+                "SELECT bool_and(l.type = 'event') FROM orders ord "
+                "JOIN listings l ON l.id = ord.listing_id"
+            )
+        )
+
+    # Back again, with the tier columns refilled from offers.
+    command.downgrade(cfg, "0012")
+    with engine.connect() as conn:
+        assert conn.execute(text(tier_columns)).all() == before

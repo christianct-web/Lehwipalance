@@ -13,6 +13,7 @@ from sqlalchemy import select
 
 from app.api.deps import DbSession
 from app.models import (
+    AccommodationListing,
     Listing,
     ListingStatus,
     ListingType,
@@ -26,7 +27,12 @@ from app.schemas.listings import (
     ListingSummaryOut,
 )
 from app.schemas.organisations import CollaboratorOut, OrganisationCardOut
-from app.schemas.services import EventFieldsOut, ListingDetailOut, ServiceFieldsOut
+from app.schemas.services import (
+    AccommodationFieldsOut,
+    EventFieldsOut,
+    ListingDetailOut,
+    ServiceFieldsOut,
+)
 from app.services import collaborators, countries, listings
 
 router = APIRouter(prefix="/v1", tags=["discovery"])
@@ -278,4 +284,10 @@ def listing_detail(slug: str, db: DbSession) -> ListingDetailOut:
         service = db.get(ServiceListing, listing.id)
         if service is not None:
             detail.service = ServiceFieldsOut.model_validate(service, from_attributes=True)
+    elif listing.type == ListingType.accommodation:
+        place = db.get(AccommodationListing, listing.id)
+        if place is not None:
+            detail.accommodation = AccommodationFieldsOut.model_validate(
+                place, from_attributes=True
+            )
     return detail

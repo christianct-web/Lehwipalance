@@ -123,7 +123,7 @@ def complete_test_payment(
         db.rollback()
         raise _sale_error(e) from None
     db.commit()
-    event = db.get(Event, order.event_id)
+    event = db.get(Event, order.listing_id)
     if order.status.value == "paid" and order.payment_reference == reference:
         _email_tickets(background, order, event)
     return order_out(db, order, event)

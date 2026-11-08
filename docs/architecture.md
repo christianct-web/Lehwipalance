@@ -40,7 +40,11 @@
 | `event_details` | The event category of a listing whose `type` is `event` |
 | `service_details` | A vendor's offering: category, how it is priced, notice needed |
 | `inquiries` | An organiser asking a vendor, and the vendor's reply |
-| `ticket_tiers` | Early bird, Tier 1, VIP; price in minor units, inventory, sales window |
+| `offers` | Anything sellable on a listing: price, currency, sales window |
+| `ticket_tiers` | An offer that is a pool of admissions: quantity, sold, max per order |
+| `accommodation_details` | Somewhere to stay: property type, check-in and check-out times |
+| `room_types` | An offer that is a kind of room: units, occupancy, minimum nights |
+| `bookings` | A stay: rooms of one kind over a range of nights, with a code |
 | `sellers` | Committee members with a personal code for attributed sales |
 | `orders`, `order_items` | A purchase; channel `online`, `seller_cash` or `box_office` |
 | `tickets` | One admission; random `code` encoded in the QR; check-in state |
@@ -74,9 +78,27 @@ subclass and its detail table, not touching the base.
   shape is indexable and identical on Postgres and on the SQLite test database,
   where JSON containment would need `JSONB`. Stored already normalised —
   lowercased, whitespace-collapsed — so matching is plain equality.
-- Still to come (Phase C, when accommodation lands): an `Offer` base over ticket
-  tiers, rate plans and tour departures, at which point `orders.event_id`
-  becomes `listing_id` and `Ticket` becomes one fulfilment type beside `Booking`.
+### Offers (joined-table inheritance, like listings)
+
+`offers` is what an order line points at, whatever is being bought: the listing
+it belongs to, its name, price, currency and sales window. How many are left is
+the subclass's business, because the shapes genuinely differ — and that
+difference is the whole reason the base exists:
+
+- A **ticket tier** holds one pool that depletes. Availability is
+  `quantity - sold - held`: a single subtraction.
+- A **room type** holds `units` on *each night*. A room sold for Friday is free
+  again on Saturday, so availability over a range is the **worst night** in it.
+
+`order_items.offer_id` and `tickets.offer_id` point here; `orders.listing_id`
+names the listing, of whatever category, because an accommodation order is not
+for an event. Ticket tiers kept their ids through migration 0013, so nothing
+that referenced them was remapped.
+
+Two things deliberately did not move. `sellers.event_id` still points at
+`event_details`, because committee selling is a fete thing. And the checkout
+request field is still `tier_id`: a fete genuinely sells tiers, and a stay has
+its own request shape with rooms and dates.
 
 ### Discovery
 
@@ -213,6 +235,36 @@ offering, which has consequences worth knowing:
   event ones, because the detail payloads genuinely differ. What they share
   already lives on `listings`, which is the whole point of Phase A.
 
+### Accommodation, and per-night inventory
+
+`bookings.stay_end` is the **departure date and is exclusive**. A
+Friday-to-Sunday stay occupies Friday and Saturday nights, so a departure and an
+arrival can share a day without colliding. Every overlap test depends on that,
+and a check constraint keeps the dates ordered.
+
+- Availability is computed in Python over the overlapping bookings, under the
+  listing row lock, rather than in SQL: the set is small and `generate_series`
+  has no portable equivalent on the SQLite test database. If a property ever
+  carries enough bookings for that to hurt, a materialised per-night table is
+  the next step — not a different answer.
+- A held booking occupies its nights only while its order is pending and
+  unexpired, mirroring a ticket hold. Simulated orders never hold a room, the
+  same rule the gate applies to a simulated ticket.
+- Settlement re-checks the nights, because a hold can lapse while a payment is
+  in flight. If the room is gone the order is marked failed and the reference
+  kept, so the property can refund it.
+- A room's `units` cannot be cut below what is already booked on any night, and
+  a room with bookings cannot be deleted — the same protections a ticket tier
+  has.
+- **The fixed part of the buyer fee is charged once per booking, not per
+  night.** The fee model was written per ticket; charging TT$3 a night would be
+  a different commercial decision than the one that was signed off. Recorded in
+  `docs/roadmap.md` as needing the client's confirmation.
+- Stays settle through their own endpoint rather than the ticket one, which is
+  the revenue-critical path and emails tickets. When WiPay is wired there will
+  be one real callback URL that has to dispatch on the listing's type; that is
+  a roadmap item so it is designed rather than discovered.
+
 ### Inquiries
 
 A service has no inventory to sell, so an inquiry is how it gets booked — the
@@ -298,6 +350,15 @@ Logic lives in `app/services/orders.py`; the payment boundary is
 | GET | `/v1/organisations` | Search organisations with something published or credited |
 | GET | `/v1/organisations/{slug}` | Public profile: followers, owned listings, collaborations |
 | GET | `/v1/listings/{slug}` | One listing of any category, with its category's fields |
+| GET | `/v1/listings/{slug}/availability` | Rooms free for a date range, and what they cost |
+| POST | `/v1/stays` | Book a stay; guest checkout, like a ticket |
+| GET | `/v1/stays/{order_id}?token=` | A stay and its booking code |
+| POST | `/v1/payments/test/stays/{order_id}` | Test provider settling a stay |
+| GET, POST | `/v1/orgs/{org_id}/places` | A property's listings; create one |
+| GET, PATCH | `/v1/orgs/{org_id}/places/{listing_id}` | One property |
+| POST | `/v1/orgs/{org_id}/places/{listing_id}/publish`, `/unpublish` | List it, or withdraw it |
+| POST | `/v1/orgs/{org_id}/places/{listing_id}/rooms` | Add a room type |
+| PATCH, DELETE | `/v1/orgs/{org_id}/places/{listing_id}/rooms/{room_id}` | Change or remove one |
 | GET | `/v1/listings/{slug}/collaborators` | Who is credited on a listing |
 | GET, POST | `/v1/orgs/{org_id}/services` | An organisation's services, drafts included; create one |
 | GET, PATCH | `/v1/orgs/{org_id}/services/{listing_id}` | One service |

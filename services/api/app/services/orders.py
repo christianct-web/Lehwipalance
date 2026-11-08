@@ -105,15 +105,15 @@ def held_quantities(
     db: Session, tier_ids: Iterable[UUID], exclude_order: UUID | None = None
 ) -> dict[UUID, int]:
     stmt = (
-        select(OrderItem.tier_id, func.sum(OrderItem.quantity))
+        select(OrderItem.offer_id, func.sum(OrderItem.quantity))
         .join(Order, Order.id == OrderItem.order_id)
         .where(
-            OrderItem.tier_id.in_(list(tier_ids)),
+            OrderItem.offer_id.in_(list(tier_ids)),
             Order.status == OrderStatus.pending,
             Order.expires_at > utcnow(),
             Order.is_test.is_(False),
         )
-        .group_by(OrderItem.tier_id)
+        .group_by(OrderItem.offer_id)
     )
     if exclude_order is not None:
         stmt = stmt.where(Order.id != exclude_order)
@@ -133,7 +133,7 @@ def sales_close_at(event: Event, tier: TicketTier):
 def _lock_tiers(db: Session, event_id: UUID, tier_ids: list[UUID]) -> dict[UUID, TicketTier]:
     tiers = db.scalars(
         select(TicketTier)
-        .where(TicketTier.id.in_(tier_ids), TicketTier.event_id == event_id)
+        .where(TicketTier.id.in_(tier_ids), TicketTier.listing_id == event_id)
         .order_by(TicketTier.id)  # fixed lock order
         .with_for_update()
         .execution_options(populate_existing=True)
@@ -147,7 +147,7 @@ def _issue_tickets(db: Session, order: Order) -> None:
             db.add(
                 Ticket(
                     order_id=order.id,
-                    tier_id=item.tier_id,
+                    offer_id=item.offer_id,
                     holder_id=order.buyer_id,
                     code=new_token(),
                     status=TicketStatus.valid,
@@ -157,7 +157,7 @@ def _issue_tickets(db: Session, order: Order) -> None:
 
 def _commit_inventory(tiers: dict[UUID, TicketTier], order: Order) -> None:
     for item in order.items:
-        tiers[item.tier_id].quantity_sold += item.quantity
+        tiers[item.offer_id].quantity_sold += item.quantity
 
 
 def place_order(
@@ -208,7 +208,7 @@ def place_order(
         buyer_fee += q.buyer_fee_minor if online else 0
         promoter_fee += q.promoter_fee_minor
         items.append(
-            OrderItem(tier_id=tier_id, quantity=quantity, unit_price_minor=tier.price_minor)
+            OrderItem(offer_id=tier_id, quantity=quantity, unit_price_minor=tier.price_minor)
         )
 
     needs_payment = online and subtotal + buyer_fee > 0
@@ -217,7 +217,7 @@ def place_order(
         raise SaleError(409, "Online payments aren't open yet. Buy from a seller or at the gate.")
 
     order = Order(
-        event_id=event.id,
+        listing_id=event.id,
         buyer_id=buyer.user_id,
         buyer_name=buyer.name,
         buyer_email=buyer.email.lower() if buyer.email else None,
@@ -249,10 +249,10 @@ def place_order(
 
 
 def _lock_order_and_event(db: Session, order_id: UUID) -> tuple[Order, Event]:
-    event_id = db.scalar(select(Order.event_id).where(Order.id == order_id))
-    if event_id is None:
+    listing_id = db.scalar(select(Order.listing_id).where(Order.id == order_id))
+    if listing_id is None:
         raise SaleError(404, "Order not found")
-    event = lock_event(db, event_id)
+    event = lock_event(db, listing_id)
     order = db.scalar(
         select(Order)
         .where(Order.id == order_id)
@@ -285,10 +285,10 @@ def mark_paid(db: Session, order_id: UUID, reference: str) -> Order:
 
     order.payment_reference = reference
     if not order.is_test:
-        tiers = _lock_tiers(db, order.event_id, sorted({i.tier_id for i in order.items}))
+        tiers = _lock_tiers(db, order.listing_id, sorted({i.offer_id for i in order.items}))
         # This order's own hold doesn't count against it; everyone else's does.
         held = held_quantities(db, tiers, exclude_order=order.id)
-        if any(item.quantity > available(tiers[item.tier_id], held) for item in order.items):
+        if any(item.quantity > available(tiers[item.offer_id], held) for item in order.items):
             log.error(
                 "order %s paid (%s) but its tickets are gone: refund due", order.id, reference
             )
@@ -311,12 +311,12 @@ def mark_failed(db: Session, order_id: UUID, reference: str | None) -> Order:
     return order
 
 
-def cancel_open_orders(db: Session, event_id: UUID) -> int:
+def cancel_open_orders(db: Session, listing_id: UUID) -> int:
     """On event cancellation (caller holds the event lock): close every checkout
     still waiting for payment, so a late payment can't issue tickets."""
     result = db.execute(
         update(Order)
-        .where(Order.event_id == event_id, Order.status == OrderStatus.pending)
+        .where(Order.listing_id == listing_id, Order.status == OrderStatus.pending)
         .values(status=OrderStatus.cancelled)
     )
     return result.rowcount
@@ -336,14 +336,14 @@ class CheckinResult:
 def check_in(db: Session, event: Event, code: str, user_id: UUID) -> CheckinResult:
     row = db.execute(
         select(Ticket, TicketTier, Order)
-        .join(TicketTier, TicketTier.id == Ticket.tier_id)
+        .join(TicketTier, TicketTier.id == Ticket.offer_id)
         .join(Order, Order.id == Ticket.order_id)
         .where(Ticket.code == code.strip())
     ).first()
     if row is None:
         return CheckinResult("not_found")
     ticket, tier, order = row
-    if tier.event_id != event.id:
+    if tier.listing_id != event.id:
         return CheckinResult("wrong_event", ticket, tier, order)
     if order.is_test:
         return CheckinResult("test_ticket", ticket, tier, order)

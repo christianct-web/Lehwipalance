@@ -1,6 +1,6 @@
 """Service listings: the vendor directory's own fields, and listing detail."""
 
-from datetime import datetime
+from datetime import datetime, time
 from typing import Self
 from uuid import UUID
 
@@ -28,6 +28,14 @@ class EventFieldsOut(BaseModel):
     category: str
 
 
+class AccommodationFieldsOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    property_type: str
+    check_in_after: time | None
+    check_out_before: time | None
+
+
 class ListingDetailOut(ListingSummaryOut):
     """One listing of any category, with whatever its category adds.
 
@@ -42,6 +50,7 @@ class ListingDetailOut(ListingSummaryOut):
     collaborators: list[CollaboratorOut]
     event: EventFieldsOut | None = None
     service: ServiceFieldsOut | None = None
+    accommodation: AccommodationFieldsOut | None = None
 
 
 class _ServiceFields(BaseModel):
