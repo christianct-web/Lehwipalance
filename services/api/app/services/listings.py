@@ -248,7 +248,7 @@ def refresh_price_range(db: Session, listing_id: UUID) -> None:
     if listing.type == ListingType.event:
         lo, hi = db.execute(
             select(func.min(TicketTier.price_minor), func.max(TicketTier.price_minor)).where(
-                TicketTier.event_id == listing_id
+                TicketTier.listing_id == listing_id
             )
         ).one()
     elif listing.type == ListingType.service:

@@ -133,19 +133,23 @@ def record_sale(
 def sales_report(org_id: UUID, event_id: UUID, member: OrgAdmin, db: DbSession) -> SalesReportOut:
     event = _event(db, org_id, event_id)
     tiers = db.scalars(
-        select(TicketTier).where(TicketTier.event_id == event.id).order_by(TicketTier.sort_order)
+        select(TicketTier).where(TicketTier.listing_id == event.id).order_by(TicketTier.sort_order)
     ).all()
     held = orders.held_quantities(db, [t.id for t in tiers])
     # Real sales only: simulated (test-provider) orders never count.
-    paid = (Order.event_id == event.id, Order.status == OrderStatus.paid, Order.is_test.is_(False))
+    paid = (
+        Order.listing_id == event.id,
+        Order.status == OrderStatus.paid,
+        Order.is_test.is_(False),
+    )
 
     # Gross per tier from paid order lines (not price * sold, in case a price changed).
     tier_gross = dict(
         db.execute(
-            select(OrderItem.tier_id, func.sum(OrderItem.quantity * OrderItem.unit_price_minor))
+            select(OrderItem.offer_id, func.sum(OrderItem.quantity * OrderItem.unit_price_minor))
             .join(Order, Order.id == OrderItem.order_id)
             .where(*paid)
-            .group_by(OrderItem.tier_id)
+            .group_by(OrderItem.offer_id)
         ).all()
     )
     tickets_per_order = (
@@ -247,7 +251,7 @@ def list_orders(
     stmt = (
         select(Order, Seller.display_name)
         .outerjoin(Seller, Seller.id == Order.seller_id)
-        .where(Order.event_id == event.id)
+        .where(Order.listing_id == event.id)
     )
     if not include_unpaid:
         stmt = stmt.where(Order.status == OrderStatus.paid, Order.is_test.is_(False))
@@ -300,10 +304,10 @@ def list_orders(
 def _count_tickets(db: Session, event: Event, only: TicketStatus | None = None) -> int:
     stmt = (
         select(func.count(Ticket.id))
-        .join(TicketTier, TicketTier.id == Ticket.tier_id)
+        .join(TicketTier, TicketTier.id == Ticket.offer_id)
         .join(Order, Order.id == Ticket.order_id)
         .where(
-            TicketTier.event_id == event.id,
+            TicketTier.listing_id == event.id,
             Ticket.status != TicketStatus.void,
             Order.is_test.is_(False),
         )

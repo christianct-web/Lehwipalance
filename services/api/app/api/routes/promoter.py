@@ -294,7 +294,7 @@ def cancel_event(org_id: UUID, event_id: UUID, member: OrgAdmin, db: DbSession) 
     paid = db.scalar(
         select(
             exists().where(
-                Order.event_id == event.id,
+                Order.listing_id == event.id,
                 Order.status == OrderStatus.paid,
                 Order.is_test.is_(False),
             )
@@ -330,7 +330,7 @@ def create_tier(
     org_id: UUID, event_id: UUID, body: TierIn, member: OrgAdmin, db: DbSession
 ) -> Event:
     event = _editable_event(db, org_id, event_id)
-    db.add(TicketTier(**body.model_dump(), event_id=event.id))
+    db.add(TicketTier(**body.model_dump(), listing_id=event.id))
     db.flush()
     listings.refresh_price_range(db, event.id)
     db.commit()
@@ -381,7 +381,7 @@ def delete_tier(
 ) -> Response:
     event = _editable_event(db, org_id, event_id)
     tier = _get_tier(event, tier_id)
-    ordered = db.scalar(select(exists().where(OrderItem.tier_id == tier.id)))
+    ordered = db.scalar(select(exists().where(OrderItem.offer_id == tier.id)))
     if tier.quantity_sold or ordered:
         raise _conflict("This tier has orders; set its quantity or sales window instead")
     event.tiers.remove(tier)

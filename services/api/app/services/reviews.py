@@ -54,7 +54,7 @@ def attended(db: Session, user: User, listing_id: UUID) -> bool:
         select(Ticket.id)
         .join(Order, Order.id == Ticket.order_id)
         .where(
-            Order.event_id == listing_id,
+            Order.listing_id == listing_id,
             Order.is_test.is_(False),
             Ticket.status == TicketStatus.checked_in,
             or_(Ticket.holder_id == user.id, Order.buyer_id == user.id),

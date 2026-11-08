@@ -32,7 +32,9 @@ class Order(IdMixin, TimestampMixin, Base):
     __tablename__ = "orders"
 
     buyer_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"), nullable=True)
-    event_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("event_details.id"), index=True)
+    # To `listings`, not `event_details`: an accommodation order is not for
+    # an event. Which categories are purchasable is an application rule.
+    listing_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("listings.id"), index=True)
     seller_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("sellers.id"), nullable=True)
     status: Mapped[OrderStatus] = mapped_column(
         Enum(OrderStatus, native_enum=False), default=OrderStatus.pending, index=True
@@ -73,7 +75,7 @@ class OrderItem(IdMixin, Base):
     __tablename__ = "order_items"
 
     order_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("orders.id"), index=True)
-    tier_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("ticket_tiers.id"), index=True)
+    offer_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("offers.id"), index=True)
     quantity: Mapped[int] = mapped_column(Integer)
     unit_price_minor: Mapped[int] = mapped_column(Integer)
 
@@ -86,7 +88,7 @@ class Ticket(IdMixin, TimestampMixin, Base):
     __tablename__ = "tickets"
 
     order_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("orders.id"), index=True)
-    tier_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("ticket_tiers.id"), index=True)
+    offer_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("offers.id"), index=True)
     holder_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     code: Mapped[str] = mapped_column(String(64), unique=True, index=True)
     status: Mapped[TicketStatus] = mapped_column(

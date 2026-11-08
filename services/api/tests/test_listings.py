@@ -269,8 +269,8 @@ def test_price_rollup_follows_the_tiers(client, db_session, seeded):
 
     db_session.add_all(
         [
-            TicketTier(event_id=event.id, name="Early", price_minor=30_000, quantity=10),
-            TicketTier(event_id=event.id, name="VIP", price_minor=90_000, quantity=5),
+            TicketTier(listing_id=event.id, name="Early", price_minor=30_000, quantity=10),
+            TicketTier(listing_id=event.id, name="VIP", price_minor=90_000, quantity=5),
         ]
     )
     db_session.flush()

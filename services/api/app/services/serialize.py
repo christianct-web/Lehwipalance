@@ -12,10 +12,10 @@ from app.services.orders import display_status
 
 
 def order_out(db: Session, order: Order, event: Event | None = None) -> OrderOut:
-    event = event or db.get(Event, order.event_id)
+    event = event or db.get(Event, order.listing_id)
     tier_names: dict[UUID, str] = dict(
         db.execute(
-            select(TicketTier.id, TicketTier.name).where(TicketTier.event_id == event.id)
+            select(TicketTier.id, TicketTier.name).where(TicketTier.listing_id == event.id)
         ).all()
     )
     tickets = db.scalars(
@@ -35,7 +35,7 @@ def order_out(db: Session, order: Order, event: Event | None = None) -> OrderOut
         ),
         items=[
             OrderItemOut(
-                tier_name=tier_names.get(i.tier_id, "Ticket"),
+                tier_name=tier_names.get(i.offer_id, "Ticket"),
                 quantity=i.quantity,
                 unit_price_minor=i.unit_price_minor,
             )
@@ -56,7 +56,7 @@ def order_out(db: Session, order: Order, event: Event | None = None) -> OrderOut
         tickets=[
             TicketOut(
                 code=t.code,
-                tier_name=tier_names.get(t.tier_id, "Ticket"),
+                tier_name=tier_names.get(t.offer_id, "Ticket"),
                 status=t.status.value,
                 checked_in_at=t.checked_in_at,
             )

@@ -27,7 +27,7 @@ def _seed(db):
     db.add_all(
         [
             TicketTier(
-                event_id=upcoming.id,
+                listing_id=upcoming.id,
                 name="Early bird",
                 price_minor=45000,
                 quantity=200,
@@ -35,7 +35,7 @@ def _seed(db):
                 sort_order=0,
             ),
             TicketTier(
-                event_id=upcoming.id,
+                listing_id=upcoming.id,
                 name="Tier 1",
                 price_minor=50000,
                 quantity=500,

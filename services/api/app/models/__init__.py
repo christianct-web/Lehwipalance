@@ -6,6 +6,7 @@ from app.models.event import Event, EventCategory, Seller, TicketTier
 from app.models.filter_profile import DatePreference, FilterProfile, PriceBand
 from app.models.inquiry import Inquiry, InquiryStatus
 from app.models.listing import Listing, ListingStatus, ListingTag, ListingType
+from app.models.offer import Offer, OfferType
 from app.models.order import (
     Order,
     OrderItem,
@@ -36,6 +37,8 @@ __all__ = [
     "ListingTag",
     "ListingType",
     "MemberRole",
+    "Offer",
+    "OfferType",
     "Order",
     "OrderItem",
     "OrderStatus",

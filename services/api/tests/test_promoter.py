@@ -164,7 +164,7 @@ def test_cannot_cancel_with_paid_orders(client, owner, org_id, db_session):
     event = _event(client, org_id, owner)
     db_session.add(
         Order(
-            event_id=UUID(event["id"]),
+            listing_id=UUID(event["id"]),
             status=OrderStatus.paid,
             subtotal_minor=45000,
             total_minor=47325,
@@ -300,7 +300,7 @@ def test_seller_with_orders_is_kept(client, owner, org_id, db_session):
     seller = client.post(base, json={"display_name": "Keisha"}, headers=owner).json()
     db_session.add(
         Order(
-            event_id=UUID(event["id"]),
+            listing_id=UUID(event["id"]),
             seller_id=UUID(seller["id"]),
             subtotal_minor=0,
             total_minor=0,
