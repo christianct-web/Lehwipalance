@@ -26,6 +26,8 @@ class ListingSummaryOut(BaseModel):
     cover_image_url: str | None
     price_min_minor: int | None
     price_max_minor: int | None
+    rating_count: int
+    rating_average: float | None
     tags: list[str]
 
 

@@ -69,6 +69,7 @@ class Listing(IdMixin, TimestampMixin, Base):
         Index("ix_listings_discovery", "type", "status", "starts_at"),
         Index("ix_listings_country_city", "country_code", "city"),
         Index("ix_listings_price_min", "price_min_minor"),
+        Index("ix_listings_rating", "rating_count", "rating_sum"),
     )
 
     organisation_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("organisations.id"), index=True)
@@ -107,6 +108,12 @@ class Listing(IdMixin, TimestampMixin, Base):
     price_min_minor: Mapped[int | None] = mapped_column(Integer, nullable=True)
     price_max_minor: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
+    # Review rollup, kept as a count and a sum so the figures stay exact
+    # integers and discovery can filter on the average without reading every
+    # review. Maintained by app.services.reviews.refresh_rating.
+    rating_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    rating_sum: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+
     tag_rows: Mapped[list["ListingTag"]] = relationship(
         back_populates="listing", cascade="all, delete-orphan", lazy="selectin"
     )
@@ -117,6 +124,13 @@ class Listing(IdMixin, TimestampMixin, Base):
     )
 
     __mapper_args__ = {"polymorphic_on": type}
+
+    @property
+    def rating_average(self) -> float | None:
+        """None until someone has reviewed it, which is not the same as zero."""
+        if not self.rating_count:
+            return None
+        return round(self.rating_sum / self.rating_count, 2)
 
 
 class ListingTag(Base):

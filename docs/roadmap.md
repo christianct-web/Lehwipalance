@@ -83,7 +83,7 @@ any new category.
       market's local timezone. `GET /v1/listings/calendar`
 - [x] **Price rollup** on listings (migration 0007) so price filtering works
       across categories; tags moved to their own indexable table
-- [ ] Rating filter — needs the review rollups, so it lands with reviews below
+- [x] **Rating filter** (2026-11-08): `min_rating`, over the review rollup
 - [ ] Full-text search; the current filter is `LIKE` over title, description
       and venue
 - [ ] True distance ordering (needs PostGIS, which Supabase would bring); the
@@ -93,11 +93,16 @@ any new category.
       interests, price band (any/free/paid/custom) and date preference
       (upcoming/this weekend/this month/custom), resolved against the market's
       local clock on every read. Migration 0008
-- [ ] Followings (organisations) and saved favourites (listings)
+- [x] **Followings and favourites** (2026-11-08): follow an organisation,
+      save a listing, and a feed of what followed organisations have on.
+      Migration 0009
 - [ ] Collaborators: organisations attached to a listing, with the Owned vs
       Collabs split on the organisation page
-- [ ] Reviews with section ratings and a **verified-attendee badge**, provable
-      from `Ticket.status == checked_in` and later from completed bookings
+- [x] **Reviews with section ratings and the verified-attendee badge**
+      (2026-11-08): proved from a real, checked-in, non-simulated ticket and
+      settled once at write time. Rating rollup on listings. Migration 0010
+- [ ] **Review moderation** — no way to hide or report a review, and no admin
+      tooling. A launch blocker for a public review system, not an extra
 - [ ] Agenda and push reminders (FCM)
 - [ ] Offline: cached tickets and agenda. Not offline check-in sync, which is
       a separate and harder job
@@ -145,4 +150,8 @@ any new category.
 - [ ] Switch `PAYMENT_PROVIDER` from `test` to `wipay`
 - [ ] `is_test` propagated to bookings and store orders, refused at every point
       of fulfilment
+- [ ] Review moderation: reporting, hiding, and the admin tooling behind it
+- [ ] A committed demo seed script. The 8 placeholder listings were made ad hoc
+      and `switch-to-supabase.sh` does not copy rows, so the cutover empties
+      the UI
 - [ ] Store listings, screenshots, review notes

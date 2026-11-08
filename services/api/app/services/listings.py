@@ -89,8 +89,9 @@ class Filters:
     price_max_minor: int | None = None
     free_only: bool = False
     paid_only: bool = False
+    min_rating: float | None = None
     bounds: Bounds | None = None
-    organisation_id: UUID | None = None
+    organisation_ids: list[UUID] = field(default_factory=list)
     sort: str = Sort.date
     limit: int = 50
     offset: int = 0
@@ -112,8 +113,8 @@ def _apply(stmt: Select, f: Filters) -> Select:
         stmt = stmt.where(Listing.country_code == f.country_code.upper())
     if f.city:
         stmt = stmt.where(func.lower(Listing.city) == f.city.lower())
-    if f.organisation_id:
-        stmt = stmt.where(Listing.organisation_id == f.organisation_id)
+    if f.organisation_ids:
+        stmt = stmt.where(Listing.organisation_id.in_(f.organisation_ids))
     if f.query:
         # Enough for one island's catalogue. Full-text search is a later
         # problem, and a real one: this cannot use an index.
@@ -150,6 +151,15 @@ def _apply(stmt: Select, f: Filters) -> Select:
             stmt = stmt.where(Listing.price_max_minor >= f.price_min_minor)
         if f.price_max_minor is not None:
             stmt = stmt.where(Listing.price_min_minor <= f.price_max_minor)
+    if f.min_rating is not None:
+        # Compared as sum >= average * count, so the stored integers stay
+        # exact and nothing has to divide in SQL. Unreviewed listings do not
+        # match a rating filter: no rating is not a low rating, but it is not
+        # a high one either.
+        stmt = stmt.where(
+            Listing.rating_count > 0,
+            Listing.rating_sum >= f.min_rating * Listing.rating_count,
+        )
     if f.bounds:
         b = f.bounds
         stmt = stmt.where(

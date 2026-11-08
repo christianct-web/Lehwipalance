@@ -11,7 +11,9 @@ from app.api.routes import (
     listings,
     orders,
     promoter,
+    reviews,
     sales,
+    social,
     uploads,
 )
 from app.core.config import get_settings
@@ -45,6 +47,9 @@ def create_app() -> FastAPI:
     app.include_router(listings.router)
     app.include_router(filter_profiles.router)
     app.include_router(filter_profiles.feed_router)
+    app.include_router(social.router)
+    app.include_router(social.public)
+    app.include_router(reviews.router)
     app.include_router(orders.router)
     app.include_router(promoter.router)
     app.include_router(sales.router)

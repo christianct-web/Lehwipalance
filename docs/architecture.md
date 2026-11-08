@@ -34,6 +34,8 @@
 | `listings` | Anything published, of any category; `draft` → `published` → (`cancelled`) |
 | `listing_tags` | Keywords on a listing; what a filter profile's interests match |
 | `filter_profiles` | A customer's saved discovery preferences, one per country or city |
+| `follows`, `favourites` | Organisations someone follows; listings they saved |
+| `reviews`, `review_section_ratings` | A verdict on a listing, overall and per section |
 | `event_details` | The event category of a listing whose `type` is `event` |
 | `ticket_tiers` | Early bird, Tier 1, VIP; price in minor units, inventory, sales window |
 | `sellers` | Committee members with a personal code for attributed sales |
@@ -89,6 +91,7 @@ erroring.
   square around a point (`near` + `radius_km`). It over-selects at the corners
   on purpose: it is what a plain B-tree index can answer on both backends. True
   distance ordering wants PostGIS, which the Supabase cutover would bring.
+- `min_rating` filters on the review rollup; see **Reviews** below.
 - Free text search is `LIKE` over title, description and venue. Honest for one
   island's catalogue, and it cannot use an index — full-text search is a real
   later problem, not a forgotten one.
@@ -116,6 +119,48 @@ implementation that could drift from search.
   a customer with profiles always has a feed.
 - Browsing without an account stays open (`/v1/listings`); the profile layer
   needs a token, which is the concept's rule that Profile requires login.
+
+### Follows and favourites
+
+People follow organisations, not listings: a listing is an event that ends, an
+organisation is the promoter you keep up with. Both tables use a composite
+primary key, so following or saving twice is the same as once. Following and
+saving are idempotent in both directions, because a double tap on a phone
+should not be an error.
+
+One deliberate asymmetry: discovery hides anything not published, but
+favourites do not. A listing you saved getting cancelled is exactly what you
+want to be told about.
+
+### Reviews and the verified-attendee badge
+
+The badge is the point of this feature. Anyone can run a directory and collect
+opinions; this platform sold the ticket and scanned it at the gate, so it can
+say which reviewers actually turned up — proof a competitor cannot fabricate.
+
+- It is settled when the review is written and then left alone. It records that
+  the person was scanned in, so a ticket later being voided does not retract it,
+  and editing the words does not re-evaluate it.
+- A simulated (`is_test`) order never earns it. A demo ticket buys neither entry
+  nor credibility, which is the same rule the gate applies.
+- Guest checkout means a ticket may have no holder, so the buyer on the order
+  counts as well as the ticket holder.
+- Only events can be attended today; a completed booking becomes the second way
+  to earn it when accommodation and tours land.
+- A review is refused before the listing has happened: a verdict on a fete that
+  has not started is not a review of anything. One review per person per
+  listing, edited rather than duplicated.
+- Section scores are a fixed enum (venue, organisation, value, food, music) so
+  per-section averages are comparable. They suit an event; accommodation and
+  tours will want their own, so the set grows per category rather than being
+  guessed at now.
+- The rollup on `listings` is a count and a sum, not an average, so the figures
+  stay exact integers. `min_rating` compares `rating_sum >= min * rating_count`,
+  which keeps the division out of SQL. An unreviewed listing matches no rating
+  filter: no rating is not a low rating, but it is not a high one either.
+- **Not built: moderation.** There is no way to hide or report a review, and no
+  admin tooling behind it. That is a launch blocker for a public review system,
+  not an optional extra.
 
 ### Markets
 
@@ -175,6 +220,14 @@ Logic lives in `app/services/orders.py`; the payment boundary is
 | POST | `/v1/me/filter-profiles/{id}/activate` | Switch the feed to this profile |
 | GET | `/v1/me/filter-profiles/{id}/feed` | Preview a profile without activating it |
 | GET | `/v1/me/feed` | The "For You" feed from the active profile; 404 when there is none |
+| GET | `/v1/me/follows` | Organisations I follow, with follower counts |
+| PUT, DELETE | `/v1/me/follows/{org_id}` | Follow or unfollow; both idempotent |
+| GET | `/v1/me/follows/listings` | What the organisations I follow have on |
+| GET | `/v1/me/favourites` | Listings I saved, newest first; keeps cancelled ones |
+| PUT, DELETE | `/v1/me/favourites/{listing_id}` | Save or unsave a published listing |
+| GET | `/v1/organisations/{slug}/followers` | Public follower count |
+| GET, POST | `/v1/listings/{slug}/reviews` | Reviews and their summary; write one (needs a token) |
+| PATCH, DELETE | `/v1/reviews/{id}` | Change or remove my own review |
 | GET | `/v1/events`, `/v1/events/{slug}` | Published events and tiers |
 | GET | `/v1/fees/quote` | Fee breakdown for a face value; `country` picks the market |
 | GET | `/v1/config` | Payment provider and `online_payments`: `live`, `test` or `off` |

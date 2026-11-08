@@ -13,6 +13,8 @@ from app.models.order import (
     TicketStatus,
 )
 from app.models.organisation import MemberRole, Organisation, OrgMember
+from app.models.review import Review, ReviewSection, ReviewSectionRating
+from app.models.social import Favourite, Follow
 from app.models.user import User
 
 __all__ = [
@@ -20,7 +22,9 @@ __all__ = [
     "DatePreference",
     "Event",
     "EventCategory",
+    "Favourite",
     "FilterProfile",
+    "Follow",
     "Listing",
     "ListingStatus",
     "ListingTag",
@@ -31,6 +35,9 @@ __all__ = [
     "OrderStatus",
     "OrgMember",
     "PriceBand",
+    "Review",
+    "ReviewSection",
+    "ReviewSectionRating",
     "Organisation",
     "SalesChannel",
     "Seller",
