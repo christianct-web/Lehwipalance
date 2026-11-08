@@ -22,6 +22,8 @@ from app.models import (
     ListingStatus,
     ListingTag,
     ListingType,
+    PriceModel,
+    ServiceListing,
     TicketTier,
 )
 
@@ -249,6 +251,15 @@ def refresh_price_range(db: Session, listing_id: UUID) -> None:
                 TicketTier.event_id == listing_id
             )
         ).one()
+    elif listing.type == ListingType.service:
+        # A service has one published figure, or none. `quote_only` leaves it
+        # null, which keeps the listing out of price filters rather than
+        # pretending it is free.
+        service = db.get(ServiceListing, listing_id)
+        if service is None or service.price_model == PriceModel.quote_only:
+            lo = hi = None
+        else:
+            lo = hi = service.base_price_minor
     else:
         lo = hi = None
     listing.price_min_minor = lo

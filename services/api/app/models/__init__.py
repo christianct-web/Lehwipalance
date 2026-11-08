@@ -4,6 +4,7 @@ from app.models.collaborator import ListingCollaborator
 from app.models.country import Country
 from app.models.event import Event, EventCategory, Seller, TicketTier
 from app.models.filter_profile import DatePreference, FilterProfile, PriceBand
+from app.models.inquiry import Inquiry, InquiryStatus
 from app.models.listing import Listing, ListingStatus, ListingTag, ListingType
 from app.models.order import (
     Order,
@@ -15,6 +16,7 @@ from app.models.order import (
 )
 from app.models.organisation import MemberRole, Organisation, OrgMember
 from app.models.review import Review, ReviewSection, ReviewSectionRating
+from app.models.service import PriceModel, ServiceCategory, ServiceListing
 from app.models.social import Favourite, Follow
 from app.models.user import User
 
@@ -26,6 +28,8 @@ __all__ = [
     "Favourite",
     "FilterProfile",
     "Follow",
+    "Inquiry",
+    "InquiryStatus",
     "Listing",
     "ListingCollaborator",
     "ListingStatus",
@@ -37,11 +41,14 @@ __all__ = [
     "OrderStatus",
     "OrgMember",
     "PriceBand",
+    "PriceModel",
     "Review",
     "ReviewSection",
     "ReviewSectionRating",
     "Organisation",
     "SalesChannel",
+    "ServiceCategory",
+    "ServiceListing",
     "Seller",
     "Ticket",
     "TicketStatus",

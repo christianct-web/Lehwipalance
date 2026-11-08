@@ -115,8 +115,11 @@ any new category.
 
 ## Phase C: the four new categories, in cost order
 
-- [ ] **Services** — directory plus inquiry-and-quote, no inventory engine.
-      Cheapest, and its buyers are promoters who already use the product
+- [x] **Services** (2026-11-08) — the vendor directory plus the inquiry flow
+      that books it, with its own management endpoints, price models including
+      quote-only, and a generic `GET /v1/listings/{slug}` carrying each
+      category's own fields. Migration 0012
+- [ ] A full inquiry thread, if one reply each way turns out not to be enough
 - [ ] **Accommodation** — rooms and date-range availability. Hardest inventory
       model; this is what triggers the A3 generalisation
 - [ ] **Vacation** — tours and departure slots with capacity. Reuses much of

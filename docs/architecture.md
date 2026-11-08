@@ -38,6 +38,8 @@
 | `reviews`, `review_section_ratings` | A verdict on a listing, overall and per section |
 | `listing_collaborators` | Organisations credited on a listing they do not own |
 | `event_details` | The event category of a listing whose `type` is `event` |
+| `service_details` | A vendor's offering: category, how it is priced, notice needed |
+| `inquiries` | An organiser asking a vendor, and the vendor's reply |
 | `ticket_tiers` | Early bird, Tier 1, VIP; price in minor units, inventory, sales window |
 | `sellers` | Committee members with a personal code for attributed sales |
 | `orders`, `order_items` | A purchase; channel `online`, `seller_cash` or `box_office` |
@@ -189,6 +191,46 @@ two groups: owned listings, and shared listings or collabs.
   collaboration appears on their public profile, so an invite-and-accept step
   is worth deciding before launch.
 
+### Services and the vendor directory
+
+The first of the four new categories, taken first because it needs no inventory
+engine: a service has no tiers, no date and no checkout. It is an ongoing
+offering, which has consequences worth knowing:
+
+- It sorts after dated listings (`starts_at` nulls last) and is filtered out
+  entirely by a date window, including the `upcoming_only` default. A client
+  browsing services asks with `upcoming_only=false`.
+- Publishing requires a description rather than tiers and a future start, and
+  the opposite of publishing is **unpublish** (back to draft), not cancel: you
+  do not cancel an ongoing offering. Inquiries already sent survive it —
+  withdrawing the listing does not withdraw the conversations.
+- `price_model` says what the figure means (fixed, from, hourly, per person) or
+  that there is no figure (`quote_only`). A check constraint ties the two
+  together in both directions, and a partial edit cannot break the pairing.
+  A quote-only service matches no price filter, which is honest: unpriced is
+  not free.
+- Services get their own management endpoints rather than being bent into the
+  event ones, because the detail payloads genuinely differ. What they share
+  already lives on `listings`, which is the whole point of Phase A.
+
+### Inquiries
+
+A service has no inventory to sell, so an inquiry is how it gets booked — the
+concept's "contact and booking flow directly in-app".
+
+- The states are exactly the Flutter app's existing `InquiryStatus` (pending,
+  responded, resolved, cancelled), so `RealApiService` needs no translation.
+- One message and one reply, which is what the app's contract already expects.
+  A full thread is a later decision, not a silent one: its `ChatApiService` is
+  prototype surface area nobody has asked for.
+- `organisation_id` is copied from the listing when the inquiry is made, so a
+  vendor's whole inbox is one indexed read rather than a join per listing.
+- The inbox puts pending first, because it is a work queue.
+- An organiser may hold only a few open inquiries per listing, so one account
+  cannot flood a vendor. Resolving one frees the allowance.
+- Only events are excluded from inquiries: a fete has tickets, and an inquiry
+  would be a worse way to buy one.
+
 ### Markets
 
 A listing names a country, and that row — not a constant — decides the currency
@@ -255,7 +297,16 @@ Logic lives in `app/services/orders.py`; the payment boundary is
 | GET | `/v1/organisations/{slug}/followers` | Public follower count |
 | GET | `/v1/organisations` | Search organisations with something published or credited |
 | GET | `/v1/organisations/{slug}` | Public profile: followers, owned listings, collaborations |
+| GET | `/v1/listings/{slug}` | One listing of any category, with its category's fields |
 | GET | `/v1/listings/{slug}/collaborators` | Who is credited on a listing |
+| GET, POST | `/v1/orgs/{org_id}/services` | An organisation's services, drafts included; create one |
+| GET, PATCH | `/v1/orgs/{org_id}/services/{listing_id}` | One service |
+| POST | `/v1/orgs/{org_id}/services/{listing_id}/publish`, `/unpublish` | List it, or take it back to draft |
+| POST | `/v1/listings/{slug}/inquiries` | Ask a vendor about a service |
+| GET | `/v1/me/inquiries`, `/v1/me/inquiries/{id}` | Inquiries I sent |
+| POST | `/v1/me/inquiries/{id}/cancel` | Withdraw one I sent |
+| GET | `/v1/orgs/{org_id}/inquiries[/{id}]` | The vendor's inbox, pending first |
+| POST | `/v1/orgs/{org_id}/inquiries/{id}/respond`, `/resolve` | Reply, or close it off |
 | GET, PUT | `/v1/orgs/{org_id}/listings/{listing_id}/collaborators` | Manage credits (owner's admins) |
 | DELETE | `/v1/orgs/{org_id}/listings/{listing_id}/collaborators/{id}` | Remove a credit |
 | GET, POST | `/v1/listings/{slug}/reviews` | Reviews and their summary; write one (needs a token) |

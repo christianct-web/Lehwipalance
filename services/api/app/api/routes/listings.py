@@ -9,16 +9,25 @@ from datetime import UTC, date, datetime, timedelta
 from typing import Annotated
 
 from fastapi import APIRouter, HTTPException, Query, status
+from sqlalchemy import select
 
 from app.api.deps import DbSession
-from app.models import ListingType
+from app.models import (
+    Listing,
+    ListingStatus,
+    ListingType,
+    Organisation,
+    ServiceListing,
+)
 from app.schemas.listings import (
     CalendarDayOut,
     CalendarOut,
     ListingPageOut,
     ListingSummaryOut,
 )
-from app.services import countries, listings
+from app.schemas.organisations import CollaboratorOut, OrganisationCardOut
+from app.schemas.services import EventFieldsOut, ListingDetailOut, ServiceFieldsOut
+from app.services import collaborators, countries, listings
 
 router = APIRouter(prefix="/v1", tags=["discovery"])
 
@@ -232,3 +241,41 @@ def listings_calendar(
         end=end,
         days=[CalendarDayOut(day=d, count=n) for d, n in tally.items()],
     )
+
+
+# Declared after /v1/listings/calendar on purpose: Starlette matches in order,
+# and a single-segment path parameter would otherwise swallow it.
+@router.get("/listings/{slug}", response_model=ListingDetailOut)
+def listing_detail(slug: str, db: DbSession) -> ListingDetailOut:
+    """One listing of any category, with whatever its category adds.
+
+    The event-specific page (`/v1/events/{slug}`) stays as it is: it carries
+    tiers and live availability, which no other category has.
+    """
+    listing = db.scalar(
+        select(Listing).where(Listing.slug == slug, Listing.status != ListingStatus.draft)
+    )
+    if listing is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Listing not found")
+
+    detail = ListingDetailOut(
+        **ListingSummaryOut.model_validate(listing, from_attributes=True).model_dump(),
+        description=listing.description,
+        address=listing.address,
+        organisation=OrganisationCardOut.model_validate(
+            db.get(Organisation, listing.organisation_id), from_attributes=True
+        ),
+        collaborators=[
+            CollaboratorOut(
+                id=org.id, name=org.name, slug=org.slug, instagram=org.instagram, credit=credit
+            )
+            for org, credit in collaborators.for_listing(db, listing.id)
+        ],
+    )
+    if listing.type == ListingType.event:
+        detail.event = EventFieldsOut.model_validate(listing, from_attributes=True)
+    elif listing.type == ListingType.service:
+        service = db.get(ServiceListing, listing.id)
+        if service is not None:
+            detail.service = ServiceFieldsOut.model_validate(service, from_attributes=True)
+    return detail
